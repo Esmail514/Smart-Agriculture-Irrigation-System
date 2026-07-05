@@ -1,0 +1,60 @@
+# ============================================================
+# .gitignore - Smart Agriculture Irrigation System
+# ============================================================
+
+# Environment & Secrets - NEVER commit these
+.env
+*.env
+.env.*
+
+# Local volumes & runtime data
+volumes/
+kafka/data/
+logs/
+airflow/logs/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Spark temp files
+derby.log
+metastore_db/
+spark-warehouse/
+
+# Docker override files (local dev)
+docker-compose.override.yml
+docker-compose.local.yml
+
+# Certificates & keys
+*.pem
+*.key
+*.crt
+*.p12
+
+# Build artifacts
+*.jar
+
+# Project Documents
+/Final Project- Guidelines.pdf
+/Project_36_Smart_Agriculture_Irrigation_System.docx

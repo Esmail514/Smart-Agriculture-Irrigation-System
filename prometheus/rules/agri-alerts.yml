@@ -1,0 +1,62 @@
+# ============================================================
+# Prometheus Alert Rules
+# Smart Agriculture Irrigation System
+# ============================================================
+groups:
+  - name: agri_infrastructure
+    interval: 30s
+    rules:
+      # --- Kafka Alerts ---
+      - alert: KafkaBrokerDown
+        expr: up{job="kafka"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: kafka
+        annotations:
+          summary: "Kafka broker is down"
+          description: "The Kafka broker has been unreachable for more than 1 minute."
+
+      # --- ClickHouse Alerts ---
+      - alert: ClickHouseDown
+        expr: up{job="clickhouse"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: clickhouse
+        annotations:
+          summary: "ClickHouse is down"
+          description: "ClickHouse server is not responding to metrics scrapes."
+
+      # --- MinIO Alerts ---
+      - alert: MinIODown
+        expr: up{job="minio"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: minio
+        annotations:
+          summary: "MinIO is down"
+          description: "MinIO object storage is not reachable."
+
+      # --- Airflow Alerts ---
+      - alert: AirflowWebserverDown
+        expr: up{job="airflow"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: airflow
+        annotations:
+          summary: "Airflow webserver is unreachable"
+          description: "Airflow webserver metrics endpoint is not responding."
+
+      # --- Spark Alerts ---
+      - alert: SparkMasterDown
+        expr: up{job="spark-master"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: spark
+        annotations:
+          summary: "Spark master is down"
+          description: "Spark master node is unreachable."

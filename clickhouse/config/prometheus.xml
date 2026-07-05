@@ -1,0 +1,17 @@
+<clickhouse>
+    <!-- ============================================================
+         ClickHouse Prometheus Metrics Endpoint
+         Smart Agriculture Irrigation System
+         ============================================================
+         Exposes ClickHouse internal metrics on port 8001
+         for Prometheus to scrape at http://clickhouse:8001/metrics
+         ============================================================ -->
+    <prometheus>
+        <endpoint>/metrics</endpoint>
+        <port>8001</port>
+        <metrics>true</metrics>
+        <events>true</events>
+        <asynchronous_metrics>true</asynchronous_metrics>
+        <status_info>true</status_info>
+    </prometheus>
+</clickhouse>

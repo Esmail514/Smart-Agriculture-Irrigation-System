@@ -1,0 +1,17 @@
+apiVersion: 1
+
+# ============================================================
+# Grafana Dashboard Provisioning
+# Smart Agriculture Irrigation System
+# ============================================================
+providers:
+  - name: "SmartAgri Dashboards"
+    orgId: 1
+    folder: "Smart Agriculture"
+    folderUid: "smart-agri"
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

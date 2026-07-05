@@ -1,0 +1,55 @@
+apiVersion: 1
+
+# ============================================================
+# Grafana Datasources Provisioning
+# Smart Agriculture Irrigation System
+# ============================================================
+# All datasources are provisioned automatically on startup.
+# No manual configuration needed.
+# ============================================================
+
+datasources:
+
+  # --- Primary: Prometheus (default) ---
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: "15s"
+      httpMethod: GET
+
+  # --- ClickHouse (Gold Layer Analytics) ---
+  - name: ClickHouse
+    type: grafana-clickhouse-datasource
+    uid: clickhouse
+    access: proxy
+    editable: false
+    jsonData:
+      host: clickhouse
+      port: 9000
+      protocol: native
+      username: agri_analytics
+      defaultDatabase: agri_gold
+      tlsSkipVerify: true
+    secureJsonData:
+      password: "${CLICKHOUSE_PASSWORD}"
+
+  # --- PostgreSQL (Crop / Field Reference Data) ---
+  - name: PostgreSQL
+    type: postgres
+    uid: postgres
+    access: proxy
+    url: postgres:5432
+    user: agri_user
+    editable: false
+    jsonData:
+      database: agri_meta
+      sslmode: disable
+      postgresVersion: 1400
+      timescaledb: false
+    secureJsonData:
+      password: "${POSTGRES_PASSWORD}"

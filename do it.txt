@@ -1,0 +1,13 @@
+cd 'D:\Learning\Data Engneering boatcamp\final project'
+
+& "d:/Learning/Data Engneering boatcamp/final project/venv/Scripts/python.exe" "d:/Learning/Data Engneering boatcamp/final project/kafka/producer/simulator.py"
+
+docker exec -it agri-spark-master bash
+
+mkdir -p /tmp/spark-events
+
+PYTHONPATH=/opt/spark spark-submit \
+  --master spark://spark-master:7077 \
+  /opt/spark/apps/bronze_writer.py
+
+  PYTHONPATH=/opt/spark spark-submit --master spark://spark-master:7077 /opt/spark/apps/silver_writer.py

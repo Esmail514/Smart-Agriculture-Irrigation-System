@@ -1,0 +1,28 @@
+<clickhouse>
+    <!-- ============================================================
+         ClickHouse User Configuration
+         Smart Agriculture Irrigation System
+         ============================================================
+         Creates the agri_analytics user with appropriate permissions
+         for the Gold layer analytics database.
+         ============================================================ -->
+    <users>
+        <!-- Analytics user for Grafana / Power BI / Application -->
+        <agri_analytics>
+            <!-- Use plaintext for development only -->
+            <password from_env="CLICKHOUSE_PASSWORD"/>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <profile>default</profile>
+            <quota>default</quota>
+            <databases>
+                <agri_gold/>
+            </databases>
+            <allow_databases>
+                <database>agri_gold</database>
+                <database>system</database>
+            </allow_databases>
+        </agri_analytics>
+    </users>
+</clickhouse>
