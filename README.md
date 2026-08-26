@@ -45,7 +45,7 @@ Weather API ──────────────────────�
                               │  Dashboard   │
                               └──────────────┘
 
-Orchestration: Apache Airflow (CeleryExecutor)
+Orchestration: Apache Airflow (LocalExecutor)
 Monitoring:    Prometheus + Grafana
 Reference DB:  PostgreSQL (Crops, Fields, Metadata)
 ```
@@ -57,22 +57,21 @@ Reference DB:  PostgreSQL (Crops, Fields, Metadata)
 | # | Service | Image | Purpose | Port(s) |
 |---|---------|-------|---------|---------|
 | 1 | **PostgreSQL** | `postgres:14-alpine` | Crop/field reference data + Airflow metadata | 5432 |
-| 2 | **Redis** | `redis:7.2-alpine` | Celery broker for Airflow | 6379 |
-| 3 | **Kafka** | `apache/kafka:3.7.1` | Real-time IoT sensor streaming (KRaft) | 9092, 9094 |
-| 4 | **Kafka UI** | `provectuslabs/kafka-ui` | Topic/consumer group monitoring | **8080** |
-| 5 | **MinIO** | `minio/minio:latest` | S3-compatible Data Lake (Bronze/Silver/Gold) | **9000**, **9001** |
-| 6 | **Spark Master** | `jupyter/pyspark-notebook:spark-3.5.0` | Spark cluster coordinator | **8090**, 7077 |
-| 7 | **Spark Worker** | `jupyter/pyspark-notebook:spark-3.5.0` | Task executor | **8091** |
-| 8 | **Spark History** | `jupyter/pyspark-notebook:spark-3.5.0` | Completed job log viewer | **18080** |
-| 9 | **Jupyter** | `jupyter/pyspark-notebook:spark-3.5.0` | Interactive PySpark development | **8888** |
-| 10 | **ClickHouse** | `clickhouse/clickhouse-server` | Columnar OLAP for Gold layer | **8123**, 9002 |
-| 11 | **Airflow Init** | `apache/airflow:2.9.1` | DB migration + admin user creation | — |
-| 12 | **Airflow Webserver** | `apache/airflow:2.9.1` | DAG management UI | **8085** |
-| 13 | **Airflow Scheduler** | `apache/airflow:2.9.1` | DAG parsing & triggering | — |
-| 14 | **Airflow Worker** | `apache/airflow:2.9.1` | Celery task executor | — |
-| 15 | **Airflow Triggerer** | `apache/airflow:2.9.1` | Deferrable operators handler | — |
-| 16 | **Prometheus** | `prom/prometheus:latest` | Metrics collection | **9090** |
-| 17 | **Grafana** | `grafana/grafana:latest` | Dashboards & alerting | **3000** |
+| 2 | **Kafka** | `apache/kafka:3.7.1` | Real-time IoT sensor streaming (KRaft) | 9092, 9094 |
+| 3 | **Kafka UI** | `provectuslabs/kafka-ui` | Topic/consumer group monitoring | **8080** |
+| 4 | **MinIO** | `minio/minio:latest` | S3-compatible Data Lake (Bronze/Silver/Gold) | **9000**, **9001** |
+| 5 | **Spark Master** | `jupyter/pyspark-notebook:spark-3.5.0` | Spark cluster coordinator + streaming drivers | **8090**, 7077 |
+| 6 | **Spark Worker** | `jupyter/pyspark-notebook:spark-3.5.0` | Task executor | **8091** |
+| 7 | **Spark History** | `jupyter/pyspark-notebook:spark-3.5.0` | Completed job log viewer | **18080** |
+| 8 | **ClickHouse** | `clickhouse/clickhouse-server` | Columnar OLAP for Gold layer | **8123**, 9002 |
+| 9 | **Airflow Init** | `apache/airflow:2.9.1` | DB migration + admin user creation | — |
+| 10 | **Airflow Webserver** | `apache/airflow:2.9.1` | DAG management UI | **8085** |
+| 11 | **Airflow Scheduler** | `apache/airflow:2.9.1` | DAG parsing, triggering & task execution (LocalExecutor) | — |
+| 12 | **Prometheus** | `prom/prometheus:latest` | Metrics collection | **9090** |
+| 13 | **Grafana** | `grafana/grafana:latest` | Dashboards & alerting | **3000** |
+
+> NOTE: Redis, the Celery worker and the triggerer were removed when Airflow
+> was migrated from CeleryExecutor to LocalExecutor (single-host RAM budget).
 
 ---
 
@@ -108,7 +107,7 @@ docker compose up -d
 docker compose logs -f
 
 # Start only specific services
-docker compose up -d postgres redis kafka minio
+docker compose up -d postgres kafka minio
 ```
 
 ### 4. Verify Health
@@ -382,13 +381,11 @@ docker compose down -v
 
 ```
 postgres ──────────────────────────────────────────┐
-redis ─────────────────────────────────────────────┤
 minio → minio-init ───────────────────────────────►├── airflow-init
 kafka → kafka-init                                  │       │
 spark-master → spark-worker                         │   airflow-webserver
               → spark-history                       │   airflow-scheduler
-              → jupyter                             │   airflow-worker
-                                                    │   airflow-triggerer
+                                                    │   (LocalExecutor)
 prometheus → grafana
 clickhouse
 ```
@@ -399,12 +396,13 @@ clickhouse
 
 | Service | Memory Limit | Notes |
 |---------|-------------|-------|
-| Spark Worker | 3GB | Increase for larger datasets |
-| Jupyter | 3GB | Includes driver memory |
-| ClickHouse | 2GB | Increase for production |
-| Kafka | 1GB | Sufficient for dev workloads |
-| MinIO | 1GB | Object storage overhead |
-| Airflow (each) | 1GB | Per service |
+| Spark Master | 2GB | Hosts streaming drivers (driver heap 768m) |
+| Spark Worker | 2GB | Executor heap 768m, 2 cores |
+| ClickHouse | 2GB | Self-limited to 90% of cgroup internally |
+| Kafka | 1GB | JVM heap capped at 768m below the limit |
+| MinIO | 768m | Object storage overhead |
+| Airflow Webserver | 768m | LocalExecutor: scheduler runs tasks |
+| Airflow Scheduler | 1GB | Includes task subprocesses |
 
 > 💡 **Tip:** On systems with less than 16GB RAM, you can reduce Spark worker memory in `.env`:
 > ```
@@ -419,7 +417,7 @@ clickhouse
 - Default `.gitignore` already excludes `.env`
 - ClickHouse has a dedicated analytics user (`agri_analytics`) with database-level access control
 - Kafka listeners are separated: internal (Docker network) vs external (localhost only)
-- Redis is password-protected with AOF persistence enabled
+- Airflow runs LocalExecutor - no Redis/Celery infrastructure required
 
 ---
 

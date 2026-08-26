@@ -49,7 +49,7 @@ docker compose up -d
 docker compose logs -f
 
 # Start only core infrastructure first (optional, faster)
-docker compose up -d postgres redis kafka minio
+docker compose up -d postgres kafka minio
 ```
 
 ---

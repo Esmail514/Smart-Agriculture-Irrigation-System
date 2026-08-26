@@ -51,7 +51,7 @@ The sensor pipeline, by contrast, is a continuous streaming pipeline with tightl
 |-----------------|-------------------------------------|
 | Ingestion       | Apache Kafka 3.7.1 (KRaft mode)     |
 | Stream Processing | Apache Spark 3.5 Structured Streaming |
-| Orchestration   | Apache Airflow 2.9.1 (CeleryExecutor) |
+| Orchestration   | Apache Airflow 2.9.1 (LocalExecutor) |
 | Data Lake       | MinIO (S3-compatible)               |
 | Reference DB    | PostgreSQL 14                       |
 | Analytics       | ClickHouse (columnar OLAP)          |
@@ -62,7 +62,7 @@ The sensor pipeline, by contrast, is a continuous streaming pipeline with tightl
 
 ## Service Layers
 
-1. **Infrastructure** — PostgreSQL, Redis (Celery broker)
+1. **Infrastructure** — PostgreSQL (Airflow metadata + reference data; Redis/Celery removed after LocalExecutor migration)
 2. **Streaming Ingestion** — Kafka (KRaft, no ZooKeeper)
 3. **Data Lake** — MinIO (Bronze / Silver / Gold zones)
 4. **Processing Engine** — Spark Master + Worker + History Server

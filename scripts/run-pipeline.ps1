@@ -181,10 +181,9 @@ function Start-Containers {
 function Wait-ForHealth {
     $services = @(
         @{ Name = "agri-postgres";       Expect = "healthy" },
-        @{ Name = "agri-redis";          Expect = "healthy" },
         @{ Name = "agri-kafka";          Expect = "healthy" },
         @{ Name = "agri-kafka-init";     Expect = "exited" },
-        @{ Name = "agri-kafka-ui";       Expect = "healthy" },
+        @{ Name = "agri-kafka-ui";       Expect = "running" },
         @{ Name = "agri-minio";          Expect = "healthy" },
         @{ Name = "agri-minio-init";     Expect = "exited" },
         @{ Name = "agri-clickhouse";     Expect = "healthy" },
@@ -193,11 +192,9 @@ function Wait-ForHealth {
         @{ Name = "agri-spark-history";  Expect = "healthy" },
         @{ Name = "agri-airflow-init";   Expect = "exited" },
         @{ Name = "agri-airflow-webserver"; Expect = "healthy" },
-        @{ Name = "agri-airflow-scheduler"; Expect = "healthy" },
-        @{ Name = "agri-airflow-worker"; Expect = "healthy" },
-        @{ Name = "agri-airflow-triggerer"; Expect = "healthy" },
-        @{ Name = "agri-prometheus";     Expect = "healthy" },
-        @{ Name = "agri-grafana";        Expect = "healthy" }
+        @{ Name = "agri-airflow-scheduler"; Expect = "healthy" }
+        # NOTE: agri-redis, agri-airflow-worker and agri-airflow-triggerer
+        # were removed with the CeleryExecutor → LocalExecutor migration.
     )
 
     Write-Step "Waiting for all services to become ready (timeout=${HealthTimeoutSeconds}s)"

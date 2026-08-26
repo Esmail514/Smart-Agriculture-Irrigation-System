@@ -36,14 +36,15 @@ scrape_configs:
     metrics_path: /metrics
 
   # ============================================================
-  # KAFKA - JMX Exporter
-  # Note: For production Kafka metrics, deploy a JMX exporter
-  # sidecar. Here we scrape Kafka's built-in metrics endpoint.
+  # KAFKA - DISABLED.
+  # Port 9999 is a JMX/RMI endpoint, NOT an HTTP metrics endpoint -
+  # scraping it always failed. Proper Kafka metrics need the
+  # jmx_prometheus_httpserver agent (extra config/RAM on this host):
+  # add the agent jar to KAFKA_EXTRA_ARGS with port 9101, then scrape it here.
   # ============================================================
-  - job_name: "kafka"
-    static_configs:
-      - targets: ["kafka:9999"]
-    metrics_path: /metrics
+  # - job_name: "kafka"
+  #   static_configs:
+  #     - targets: ["kafka:9101"]
     # Kafka broker health indicator via HTTP check
     relabel_configs:
       - source_labels: [__address__]
@@ -62,13 +63,14 @@ scrape_configs:
     honor_labels: true
 
   # ============================================================
-  # AIRFLOW - Built-in StatsD / metrics endpoint
+  # AIRFLOW - DISABLED.
+  # Airflow has no built-in HTTP /metrics endpoint; enabling metrics
+  # requires the StatsD exporter sidecar (extra RAM on this host).
+  # Re-enable if a statsd_exporter service is added:
   # ============================================================
-  - job_name: "airflow"
-    static_configs:
-      - targets: ["airflow-webserver:8080"]
-    metrics_path: /metrics
-    honor_labels: true
+  # - job_name: "airflow"
+  #   static_configs:
+  #     - targets: ["statsd-exporter:9102"]
 
   # ============================================================
   # MINIO - Built-in Prometheus metrics
@@ -92,36 +94,32 @@ scrape_configs:
       - targets: ["minio:9000"]
 
   # ============================================================
-  # POSTGRESQL - via postgres_exporter (if deployed)
+  # POSTGRESQL - DISABLED.
+  # Plain postgres does not expose /metrics; needs postgres_exporter
+  # sidecar (extra RAM on this host). Re-enable when added:
   # ============================================================
-  - job_name: "postgres"
-    static_configs:
-      - targets: ["postgres:5432"]
-    metrics_path: /metrics
-    # Note: Requires postgres_exporter sidecar for full metrics.
-    # Add postgres_exporter service to docker-compose for richer metrics.
+  # - job_name: "postgres"
+  #   static_configs:
+  #     - targets: ["postgres-exporter:9187"]
 
   # ============================================================
-  # SPARK - REST API metrics
-  # Spark Master exposes metrics at /metrics/json
+  # SPARK - DISABLED.
+  # Attempted the built-in PrometheusServlet via infra/spark/conf/metrics.properties
+  # (+ explicit SPARK_CONF_DIR); the standalone master/worker daemons of this
+  # jupyter/pyspark-notebook image do not register the servlet sink - both
+  # paths fall through to the UI HTML. Proper Spark metrics need either
+  # spark.ui.prometheus.enabled=true on a Spark 4.x image or a JMX exporter
+  # agent per daemon (extra RAM). Re-enable here once available:
   # ============================================================
-  - job_name: "spark-master"
-    static_configs:
-      - targets: ["spark-master:8090"]
-    metrics_path: /metrics/json
-    relabel_configs:
-      - source_labels: [__address__]
-        target_label: role
-        replacement: "master"
-
-  - job_name: "spark-worker"
-    static_configs:
-      - targets: ["spark-worker:8091"]
-    metrics_path: /metrics/json
-    relabel_configs:
-      - source_labels: [__address__]
-        target_label: role
-        replacement: "worker"
+  # - job_name: "spark-master"
+  #   metrics_path: /metrics/prometheus
+  #   static_configs:
+  #     - targets: ["spark-master:8090"]
+  #
+  # - job_name: "spark-worker"
+  #   metrics_path: /metrics/prometheus
+  #   static_configs:
+  #     - targets: ["spark-worker:8091"]
 
   # ============================================================
   # DOCKER ENGINE - via cadvisor (optional)

@@ -37,8 +37,8 @@ volumes:
   # --- Infrastructure ---
   postgres_data:
     name: agri_postgres_data
-  redis_data:
-    name: agri_redis_data
+  # NOTE: agri_redis_data removed together with the Redis service
+  # (Airflow migrated from CeleryExecutor to LocalExecutor).
   kafka_data:
     name: agri_kafka_data
 
@@ -89,9 +89,8 @@ x-airflow-common-env:
   # Database backend
   &airflow-common-env
   AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${INTERNAL_POSTGRES_PORT}/${POSTGRES_AIRFLOW_DB}
-  # Celery broker & backend
-  AIRFLOW__CELERY__BROKER_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/0
-  AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${INTERNAL_POSTGRES_PORT}/${POSTGRES_AIRFLOW_DB}
+  # NOTE: Celery broker/result-backend settings removed - LocalExecutor
+  # executes tasks in-process (subprocesses of the scheduler), no broker.
   # Core settings
   AIRFLOW__CORE__EXECUTOR: ${AIRFLOW_EXECUTOR}
   AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
@@ -124,8 +123,6 @@ x-airflow-common-volumes: &airflow-common-volumes
 
 x-airflow-common-depends: &airflow-common-depends
   postgres:
-    condition: service_healthy
-  redis:
     condition: service_healthy
 
 x-spark-common-env:
@@ -204,31 +201,11 @@ services:
           memory: 512m
 
   # ===========================================================
-  # Redis - Celery Broker for Airflow CeleryExecutor
+  # Redis - REMOVED.
+  # Was only used as the Celery broker for Airflow's CeleryExecutor.
+  # Airflow now uses LocalExecutor (tasks run as subprocesses of the
+  # scheduler), so the broker and the dedicated worker container are gone.
   # ===========================================================
-  redis:
-    image: redis:7.2-alpine
-    container_name: agri-redis
-    hostname: redis
-    <<: [ *restart-policy, *common-logging ]
-    command: >
-      redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes --appendfsync everysec --maxmemory 256mb --maxmemory-policy allkeys-lru
-    volumes:
-      - redis_data:/data
-    ports:
-      - "6379:6379"
-    networks:
-      - agri-net
-    healthcheck:
-      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping" ]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 256m
 
   # ===========================================================
   # LAYER 2: STREAMING INGESTION
@@ -259,6 +236,12 @@ services:
 
       # --- Storage ---
       KAFKA_LOG_DIRS: /opt/kafka/data/logs
+
+      # --- JVM Heap (explicit) ---
+      # Image default is -Xmx1G/-Xms1G which EQUALS the 1g cgroup limit,
+      # leaving no room for metaspace/threads -> GC thrash & OOM risk.
+      # Heap must stay clearly below the container limit below.
+      KAFKA_HEAP_OPTS: "-Xms512m -Xmx768m"
 
       # --- Performance & Reliability ---
       KAFKA_NUM_PARTITIONS: 4
@@ -401,7 +384,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1g
+          memory: 768m
 
   # MinIO Client - Automatically creates all required buckets
   minio-init:
@@ -440,6 +423,7 @@ services:
     environment:
       <<: *spark-common-env
       SPARK_MODE: master
+      SPARK_CONF_DIR: /usr/local/spark/conf
       SPARK_MASTER_HOST: spark-master
       SPARK_MASTER_PORT: ${SPARK_MASTER_PORT}
       SPARK_MASTER_WEBUI_PORT: ${SPARK_MASTER_WEBUI_PORT}
@@ -450,6 +434,7 @@ services:
       - spark_jars_cache:/home/jovyan/.ivy2
       - ./infra/spark/conf/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf:ro
       - ./infra/spark/conf/log4j2.properties:/usr/local/spark/conf/log4j2.properties:ro
+      - ./infra/spark/conf/metrics.properties:/usr/local/spark/conf/metrics.properties:ro
       - ./infra/spark/jars:/opt/spark/extra-jars:ro
       - ./src/processing:/opt/spark/apps:rw
       - ./src/common:/opt/spark/apps/common:rw
@@ -492,6 +477,7 @@ services:
     environment:
       <<: *spark-common-env
       SPARK_MODE: worker
+      SPARK_CONF_DIR: /usr/local/spark/conf
       SPARK_MASTER_URL: spark://spark-master:${SPARK_MASTER_PORT}
       SPARK_WORKER_CORES: ${SPARK_WORKER_CORES}
       SPARK_WORKER_MEMORY: ${SPARK_WORKER_MEMORY}
@@ -503,6 +489,7 @@ services:
       - spark_jars_cache:/home/jovyan/.ivy2
       - ./infra/spark/conf/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf:ro
       - ./infra/spark/conf/log4j2.properties:/usr/local/spark/conf/log4j2.properties:ro
+      - ./infra/spark/conf/metrics.properties:/usr/local/spark/conf/metrics.properties:ro
       - ./infra/spark/jars:/opt/spark/extra-jars:ro
       - ./src/processing:/opt/spark/apps:rw
       - ./src/common:/opt/spark/apps/common:rw
@@ -526,7 +513,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 3g
+          memory: 2g
 
   # Spark History Server - Browse completed & running application logs
   spark-history:
@@ -614,7 +601,8 @@ services:
 
   # ===========================================================
   # LAYER 6: ORCHESTRATION - Apache Airflow 2.9.1
-  # CeleryExecutor with Redis broker for parallel task execution
+  # LocalExecutor - tasks run as subprocesses of the scheduler
+  # (migrated from CeleryExecutor to save ~1.5GB RAM on this host)
   # ===========================================================
 
   # Airflow Init - Database migration + admin user creation
@@ -673,7 +661,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1g
+          memory: 768m
 
   # Airflow Scheduler - Parses DAGs and triggers task instances
   airflow-scheduler:
@@ -702,62 +690,14 @@ services:
         limits:
           memory: 1g
 
-  # Airflow Worker - Executes tasks via Celery
-  airflow-worker:
-    image: apache/airflow:2.9.1
-    container_name: agri-airflow-worker
-    hostname: airflow-worker
-    <<: [ *restart-policy, *common-logging ]
-    depends_on:
-      <<: *airflow-common-depends
-      airflow-init:
-        condition: service_completed_successfully
-    environment:
-      <<: *airflow-common-env
-      DUMB_INIT_SETSID: "0"
-    volumes: *airflow-common-volumes
-    networks:
-      - agri-net
-    command: celery worker
-    healthcheck:
-      test:
-        - "CMD-SHELL"
-        - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || exit 1'
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    deploy:
-      resources:
-        limits:
-          memory: 1g
-
-  # Airflow Triggerer - Handles deferrable operators
-  airflow-triggerer:
-    image: apache/airflow:2.9.1
-    container_name: agri-airflow-triggerer
-    hostname: airflow-triggerer
-    <<: [ *restart-policy, *common-logging ]
-    depends_on:
-      <<: *airflow-common-depends
-      airflow-init:
-        condition: service_completed_successfully
-    environment:
-      <<: *airflow-common-env
-    volumes: *airflow-common-volumes
-    networks:
-      - agri-net
-    command: triggerer
-    healthcheck:
-      test: [ "CMD-SHELL", "airflow jobs check --job-type TriggererJob --hostname airflow-triggerer" ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    deploy:
-      resources:
-        limits:
-          memory: 512m
+  # ===========================================================
+  # Airflow Worker - REMOVED (CeleryExecutor → LocalExecutor).
+  # Tasks now execute as subprocesses of the scheduler process.
+  #
+  # Airflow Triggerer - REMOVED.
+  # No DAG in this project uses deferrable operators; re-add if
+  # deferrable sensors/operators are introduced later.
+  # ===========================================================
 
   # ===========================================================
   # LAYER 7: MONITORING - Prometheus + Grafana
