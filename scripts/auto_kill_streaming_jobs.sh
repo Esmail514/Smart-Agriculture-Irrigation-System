@@ -6,7 +6,10 @@
 # ==============================================================================
 
 INTERVAL_SECONDS=${KILL_INTERVAL_SECONDS:-300}
-JOBS=("bronze_streaming.py" "silver_streaming.py" "gold_streaming.py")
+# gold_to_clickhouse.py is included so the ClickHouse sync stream cannot be
+# permanently starved of executor slots by bronze/silver/gold; its Spark
+# checkpoints make every restart safe (at-least-once JDBC writes).
+JOBS=("bronze_streaming.py" "silver_streaming.py" "gold_streaming.py" "gold_to_clickhouse.py")
 
 echo "[auto_killer] Started auto-kill daemon for streaming jobs (interval: ${INTERVAL_SECONDS}s)"
 

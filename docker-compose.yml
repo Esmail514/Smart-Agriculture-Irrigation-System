@@ -423,7 +423,6 @@ services:
     environment:
       <<: *spark-common-env
       SPARK_MODE: master
-      SPARK_CONF_DIR: /usr/local/spark/conf
       SPARK_MASTER_HOST: spark-master
       SPARK_MASTER_PORT: ${SPARK_MASTER_PORT}
       SPARK_MASTER_WEBUI_PORT: ${SPARK_MASTER_WEBUI_PORT}
@@ -434,7 +433,6 @@ services:
       - spark_jars_cache:/home/jovyan/.ivy2
       - ./infra/spark/conf/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf:ro
       - ./infra/spark/conf/log4j2.properties:/usr/local/spark/conf/log4j2.properties:ro
-      - ./infra/spark/conf/metrics.properties:/usr/local/spark/conf/metrics.properties:ro
       - ./infra/spark/jars:/opt/spark/extra-jars:ro
       - ./src/processing:/opt/spark/apps:rw
       - ./src/common:/opt/spark/apps/common:rw
@@ -459,8 +457,11 @@ services:
       start_period: 30s
     deploy:
       resources:
+        # Hosts up to FOUR concurrent streaming driver JVMs (768m heap each,
+        # ~300MB real RSS each) + the 512m master daemon. Observed peak was
+        # 1.27GB; a cgroup OOM occurred at 2g during 4-driver overlap.
         limits:
-          memory: 2g
+          memory: 2560m
 
   # Spark Worker - Executes tasks assigned by Spark Master
   spark-worker:
@@ -477,7 +478,6 @@ services:
     environment:
       <<: *spark-common-env
       SPARK_MODE: worker
-      SPARK_CONF_DIR: /usr/local/spark/conf
       SPARK_MASTER_URL: spark://spark-master:${SPARK_MASTER_PORT}
       SPARK_WORKER_CORES: ${SPARK_WORKER_CORES}
       SPARK_WORKER_MEMORY: ${SPARK_WORKER_MEMORY}
@@ -489,7 +489,6 @@ services:
       - spark_jars_cache:/home/jovyan/.ivy2
       - ./infra/spark/conf/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf:ro
       - ./infra/spark/conf/log4j2.properties:/usr/local/spark/conf/log4j2.properties:ro
-      - ./infra/spark/conf/metrics.properties:/usr/local/spark/conf/metrics.properties:ro
       - ./infra/spark/jars:/opt/spark/extra-jars:ro
       - ./src/processing:/opt/spark/apps:rw
       - ./src/common:/opt/spark/apps/common:rw
@@ -513,7 +512,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2g
+          memory: 2560m
 
   # Spark History Server - Browse completed & running application logs
   spark-history:

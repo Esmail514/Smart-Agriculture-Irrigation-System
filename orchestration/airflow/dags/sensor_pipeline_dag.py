@@ -14,13 +14,13 @@ default_args = {
 }
 
 STREAMING_JOBS = [
+    # ClickHouse sync launches FIRST: standalone-cluster scheduling is FIFO,
+    # and launching it last meant bronze/silver/gold consumed every worker
+    # slot before it registered (permanent executor starvation).
+    "gold/gold_to_clickhouse.py",
     "bronze/bronze_streaming.py",
     "silver/silver_streaming.py",
     "gold/gold_streaming.py",
-    # Long-running checkpointed stream that syncs Gold aggregates to
-    # ClickHouse via JDBC - must run in the background like the others,
-    # NOT as a synchronous batch (it never terminates).
-    "gold/gold_to_clickhouse.py",
 ]
 
 
