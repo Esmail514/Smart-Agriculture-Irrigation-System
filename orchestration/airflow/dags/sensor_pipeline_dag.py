@@ -5,7 +5,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.sensors.external_task import ExternalTaskSensor
 
-from utils.launch_spark_stream import launch_stream_job, run_spark_batch_job  # noqa: E402
+from utils.launch_spark_stream import launch_stream_job  # noqa: E402
 
 default_args = {
     "owner": "smart_agriculture",
@@ -17,9 +17,9 @@ STREAMING_JOBS = [
     "bronze/bronze_streaming.py",
     "silver/silver_streaming.py",
     "gold/gold_streaming.py",
-]
-
-BATCH_JOBS = [
+    # Long-running checkpointed stream that syncs Gold aggregates to
+    # ClickHouse via JDBC - must run in the background like the others,
+    # NOT as a synchronous batch (it never terminates).
     "gold/gold_to_clickhouse.py",
 ]
 
@@ -38,8 +38,12 @@ def _check_streaming_health(**context):
     for job in STREAMING_JOBS:
         script_name = job.split("/")[-1]
         log_path = f"/opt/spark/apps/logs/{job.replace('.py', '')}.log"
+        # Bracket-escape the first char so pgrep cannot match the *invoking*
+        # shell itself (its cmdline contains the pattern text), which made
+        # this check always pass even when the job had crashed.
+        pgrep_pattern = f"[{script_name[0]}]{script_name[1:]}"
         result = container.exec_run(
-            cmd=["bash", "-c", f"pgrep -f '{script_name}'"],
+            cmd=["bash", "-c", f"pgrep -f '{pgrep_pattern}'"],
         )
         if result.exit_code != 0:
             raise RuntimeError(
@@ -54,10 +58,6 @@ def _check_streaming_health(**context):
             raise RuntimeError(
                 f"Streaming job {job} log shows error:\n{output_text}"
             )
-
-
-def _run_gold_to_clickhouse(**context):
-    run_spark_batch_job("gold/gold_to_clickhouse.py")
 
 
 with DAG(
@@ -81,9 +81,4 @@ with DAG(
         python_callable=_check_streaming_health,
     )
 
-    gold_to_clickhouse = PythonOperator(
-        task_id="gold_to_clickhouse",
-        python_callable=_run_gold_to_clickhouse,
-    )
-
-    start_streaming >> check_health >> gold_to_clickhouse
+    start_streaming >> check_health

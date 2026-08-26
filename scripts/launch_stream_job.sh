@@ -11,7 +11,23 @@ if [ -z "$JOB_FILENAME" ]; then
 fi
 
 SCRIPT_NAME=$(basename "${JOB_FILENAME}")
-if pgrep -f "${SCRIPT_NAME}" > /dev/null 2>&1; then
+# Bracket-escape first char + exclude this shell ($$) and its parent ($PPID):
+# the launcher's own command line contains the script name (as an argument),
+# so a naive pgrep -f always self-matches and every launch reports
+# "already_running" without ever starting the job.
+PGREP_PATTERN="[${SCRIPT_NAME:0:1}]${SCRIPT_NAME:1}"
+# Exclude every process whose own cmdline is part of THIS launcher invocation
+# (the script shell, its $() subshells, wrappers) - they all inherit the same
+# argv and would otherwise always self-match. Only foreign processes
+# (the actual python/java drivers) may satisfy the guard.
+OTHER_MATCHES=$(pgrep -f "${PGREP_PATTERN}" 2>/dev/null | while IFS= read -r pid; do
+    CMDLINE=$(tr '\0' ' ' < "/proc/${pid}/cmdline" 2>/dev/null || true)
+    case "${CMDLINE}" in
+        *launch_stream_job*) ;; # our own launcher tree - ignore
+        *) echo "${pid}" ;;
+    esac
+done || true)
+if [ -n "${OTHER_MATCHES}" ]; then
     echo "already_running: ${JOB_FILENAME} is already running - ignoring this request"
     exit 0
 fi

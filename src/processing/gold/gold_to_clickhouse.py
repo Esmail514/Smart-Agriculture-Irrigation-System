@@ -55,8 +55,13 @@ def main():
     spark = create_spark("Gold To ClickHouse")
     spark.sparkContext.setLogLevel("WARN")
 
-    zone_df = spark.readStream.parquet(GOLD_ZONE_HISTORY_PATH)
-    alerts_df = spark.readStream.parquet(GOLD_ALERTS_PATH)
+    # Spark cannot infer schemas for streaming sources - derive them from a
+    # static read of the same (already-populated) Gold directories.
+    zone_schema = spark.read.parquet(GOLD_ZONE_HISTORY_PATH).schema
+    alerts_schema = spark.read.parquet(GOLD_ALERTS_PATH).schema
+
+    zone_df = spark.readStream.schema(zone_schema).parquet(GOLD_ZONE_HISTORY_PATH)
+    alerts_df = spark.readStream.schema(alerts_schema).parquet(GOLD_ALERTS_PATH)
 
     checkpoints = {
         "zone": f"s3a://{LAKEHOUSE_BUCKET}/checkpoints/ch_zone",
