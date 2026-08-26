@@ -1,0 +1,11 @@
+# Development / Host-side tools (optional — install on your workstation
+# for IDE intellisense and running the smoke tests / unit tests).
+# Containerized Spark/Airflow images ship with most of these already.
+
+-r requirements.txt
+
+jupyterlab>=4.0.0
+ipykernel>=6.0.0
+black>=24.3.0
+ruff>=0.3.0
+mypy>=1.8.0

@@ -1,0 +1,36 @@
+{
+  "type": "FeatureCollection",
+  "name": "Yemen_Farm_Boundaries",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {"farm_name": "Al-Jawf - Al Hazm", "region": "Al-Jawf"},
+      "geometry": {"type": "Polygon", "coordinates": [[[44.7575,16.1441],[44.8075,16.1441],[44.8075,16.1741],[44.7575,16.1741],[44.7575,16.1441]]]}
+    },
+    {
+      "type": "Feature",
+      "properties": {"farm_name": "Al-Jawf - Al Matammah", "region": "Al-Jawf"},
+      "geometry": {"type": "Polygon", "coordinates": [[[45.3583,15.9183],[45.4083,15.9183],[45.4083,15.9483],[45.3583,15.9483],[45.3583,15.9183]]]}
+    },
+    {
+      "type": "Feature",
+      "properties": {"farm_name": "Al-Jawf - Khab wa Ash Shaaf", "region": "Al-Jawf"},
+      "geometry": {"type": "Polygon", "coordinates": [[[45.6750,16.7350],[45.7250,16.7350],[45.7250,16.7650],[45.6750,16.7650],[45.6750,16.7350]]]}
+    },
+    {
+      "type": "Feature",
+      "properties": {"farm_name": "Tihama - Bayt Al Faqih", "region": "Tihama"},
+      "geometry": {"type": "Polygon", "coordinates": [[[43.2990,14.5010],[43.3490,14.5010],[43.3490,14.5310],[43.2990,14.5310],[43.2990,14.5010]]]}
+    },
+    {
+      "type": "Feature",
+      "properties": {"farm_name": "Tihama - Al Marawi'ah", "region": "Tihama"},
+      "geometry": {"type": "Polygon", "coordinates": [[[43.3580,14.8150],[43.4080,14.8150],[43.4080,14.8450],[43.3580,14.8450],[43.3580,14.8150]]]}
+    },
+    {
+      "type": "Feature",
+      "properties": {"farm_name": "Tihama - Al Mansuriyah", "region": "Tihama"},
+      "geometry": {"type": "Polygon", "coordinates": [[[43.2610,14.6750],[43.3110,14.6750],[43.3110,14.7050],[43.2610,14.7050],[43.2610,14.6750]]]}
+    }
+  ]
+}

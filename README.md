@@ -141,60 +141,109 @@ docker compose logs spark-master -f
 
 ---
 
+## ⚡ How The System Works
+
+This project implements a production-grade, real-time & batch **Medallion Data Lakehouse Architecture** for IoT-based precision agriculture and smart irrigation management.
+
+```
++------------------+      +-------------------+      +-------------------------+
+|  IoT Sensors     | ---> |   Apache Kafka    | ---> |  Spark Structured       |
+|  (Soil, Weather) |      | (agri.sensors.raw)|      |  Streaming (Bronze Job) |
++------------------+      +-------------------+      +-------------------------+
+                                                                |
+                                                                v
++------------------+      +-------------------+      +-------------------------+
+| ClickHouse OLAP  | <--- |   Spark Batch ETL | <--- |   MinIO Object Storage  |
+|  & Power BI UI   |      |  (Silver & Gold)  |      | (Bronze -> Silver -> Gold)|
++------------------+      +-------------------+      +-------------------------+
+         ^                                                        |
+         |                                                        v
++------------------+                                 +-------------------------+
+| Airflow DAG      | -------------------------------> |  ML Pipeline            |
+| Orchestration    |                                 | (Irrigation Prediction) |
++------------------+                                 +-------------------------+
+```
+
+### End-to-End Data Pipeline Flow:
+
+1. **Data Ingestion & Simulation**:
+   - The IoT simulator (`src/ingestion/sensor_simulator/`) streams continuous telemetry (soil moisture, temperature, humidity, pH, NPK levels) into **Apache Kafka** topics (`agri.sensors.raw`).
+   - Weather data is fetched periodically from external weather APIs via Airflow scheduled DAGs (`orchestration/airflow/dags/weather_api_pipeline_dag.py`).
+
+2. **Medallion Lakehouse Processing (Spark + MinIO)**:
+   - **Bronze Layer (Raw Storage)**: Spark Structured Streaming (`src/processing/bronze/`) reads raw messages from Kafka and writes raw JSON/Parquet directly to `s3a://bronze/sensors/raw/` with full event metadata.
+   - **Silver Layer (Cleaning & Enrichment)**: PySpark batch jobs (`src/processing/silver/`) read from Bronze, perform schema validation, unit conversions, remove duplicates, handle missing values, and join with PostgreSQL reference metadata (crops & soil characteristics), writing cleaned Parquet data to `s3a://silver/sensors/enriched/`.
+   - **Gold Layer (Aggregations & Analytics)**: Spark jobs (`src/processing/gold/`) aggregate metrics across fields, crops, and temporal windows (hourly/daily averages, min/max thresholds, water consumption metrics), writing refined business datasets to `s3a://gold/sensors/aggregated/`.
+
+3. **Analytics & Visualization Storage**:
+   - The Gold layer aggregated data is loaded into **ClickHouse** (`sql/clickhouse/`), providing ultra-fast OLAP queries for interactive **Power BI** dashboards and Grafana monitoring.
+
+4. **Machine Learning & Predictive Analytics**:
+   - Automated ML pipelines (`src/ml/`) extract features from Silver and Gold data to train models (`train.py`) that predict crop water stress and optimize irrigation scheduling. Model inferences (`predict.py`) produce actionable watering decisions.
+
+5. **Orchestration & Monitoring**:
+   - **Apache Airflow** schedules and coordinates the end-to-end processing pipeline, retries failed steps, and triggers ML training DAGs (`orchestration/airflow/dags/`).
+   - **Prometheus** scrapes operational metrics from Kafka, Spark, MinIO, ClickHouse, and Airflow, exposed visually on pre-configured **Grafana** dashboards.
+
+---
+
 ## 📁 Project Structure
 
 ```
-final project/
-├── docker-compose.yml          ← Main orchestration file
-├── .env                        ← Environment variables (secrets!)
+Smart Agriculture Irrigation System/
+├── docker-compose.yml          ← Enterprise Lakehouse Docker Compose Stack
+├── .env                        ← Environment variables & secrets
 ├── .gitignore
+├── requirements.txt            ← Python dependencies
+├── requirements-dev.txt        ← Development & testing dependencies
 │
-├── postgres/
-│   └── init/
-│       └── 01-init-databases.sql   ← Schema + seed data
+├── src/                        ← Core Application Code
+│   ├── ingestion/              ← IoT Sensor Data Generators & Simulators
+│   │   └── sensor_simulator/   ← Kafka Producer for real-time sensor streams
+│   ├── processing/             ← Spark Data Processing Modules
+│   │   ├── bronze/             ← Raw streaming ingestion (Kafka -> MinIO Bronze)
+│   │   ├── silver/             ← Cleaning, validation & deduplication (Bronze -> Silver)
+│   │   ├── gold/               ← Business aggregations & feature engineering (Silver -> Gold)
+│   │   ├── weather/            ← Weather API ingestion & processing
+│   │   └── common/             ← Shared PySpark utilities & S3/ClickHouse connectors
+│   ├── ml/                     ← Machine Learning Modules
+│   │   ├── build_training_dataset.py
+│   │   ├── train.py            ← ML model training pipeline
+│   │   ├── predict.py          ← ML inference service
+│   │   ├── datasets/           ← Synthetic / processed training datasets
+│   │   ├── models/             ← Saved ML models
+│   │   └── pipelines/          ← Scikit-Learn / ML pipelines
+│   └── common/                 ← Shared configuration, logging & schema tools
 │
-├── kafka/
-│   └── data/                       ← Kafka log data (volume)
+├── orchestration/              ← Workflow Orchestration
+│   └── airflow/
+│       ├── dags/               ← Airflow DAGs (sensor, weather & ML pipelines)
+│       │   ├── sensor_pipeline_dag.py
+│       │   ├── weather_api_pipeline_dag.py
+│       │   └── ml_pipeline_dag.py
+│       ├── config/             ← Airflow configuration
+│       └── plugins/            ← Custom Airflow operators & hooks
 │
-├── spark/
-│   ├── conf/
-│   │   ├── spark-defaults.conf     ← S3A + Iceberg + Parquet config
-│   │   └── log4j2.properties       ← Logging tuning
-│   └── jars/                       ← Extra JARs (optional)
+├── sql/                        ← Database Initialization Scripts
+│   ├── postgres/               ← Reference tables (Crops, Fields, Farms metadata)
+│   └── clickhouse/             ← OLAP Schema & Gold layer analytics tables
 │
-├── clickhouse/
-│   ├── config/
-│   │   ├── prometheus.xml          ← Metrics endpoint config
-│   │   └── users.xml               ← Analytics user config
-│   └── init/
-│       └── 01-init-schema.sql      ← Gold layer tables
+├── infra/                      ← Container & Infrastructure Configurations
+│   ├── spark/                  ← Spark Master/Worker config & log4j settings
+│   ├── clickhouse/             ← ClickHouse server config & users XML
+│   └── prometheus/             ← Prometheus scraping target configurations
 │
-├── airflow/
-│   ├── config/
-│   │   └── airflow.cfg             ← Airflow settings override
-│   ├── dags/
-│   │   ├── agri_sensor_pipeline.py ← Bronze→Silver→Gold ETL DAG
-│   │   └── agri_weather_ingestion.py ← Weather API ingestion DAG
-│   └── plugins/                    ← Custom Airflow operators
+├── scripts/                    ← Execution & Utility Scripts
+│   ├── run-pipeline.ps1        ← PowerShell master runner script
+│   ├── stop-pipeline.ps1       ← PowerShell shutdown script
+│   ├── setup-dirs.ps1          ← Directory initialization script
+│   ├── launch_stream_job.sh    ← Spark Streaming launcher
+│   └── run_spark_batch_job.sh  ← Spark Batch ETL launcher
 │
-├── prometheus/
-│   ├── prometheus.yml              ← Scrape configurations
-│   └── rules/
-│       └── agri-alerts.yml         ← Alert rules
-│
-├── grafana/
-│   ├── provisioning/
-│   │   ├── datasources/
-│   │   │   └── datasources.yml     ← Auto-configured datasources
-│   │   └── dashboards/
-│   │       └── dashboards.yml      ← Dashboard provisioning
-│   └── dashboards/                 ← JSON dashboard files
-│
-├── notebooks/
-│   └── 00_environment_test.ipynb   ← Full stack integration test
-│
-└── scripts/
-    └── setup-dirs.ps1              ← Directory initialization
+├── docs/                       ← Architecture & System Documentation
+├── notebooks/                  ← PySpark & EDA Jupyter Notebooks
+├── screenshots/                ← System dashboards & UI screenshots
+└── tests/                      ← Unit & integration test suites
 ```
 
 ---
@@ -253,6 +302,55 @@ monitoring-net                   ← Isolated metrics collection
 - **Prometheus** (default) — system metrics
 - **ClickHouse** — Gold layer analytics
 - **PostgreSQL** — crop/field reference data
+
+---
+
+## 🚀 Running The Pipelines
+
+### 1. Run via PowerShell Master Script (Automated)
+
+```powershell
+# Start infrastructure and run pipeline steps automatically
+.\scripts\run-pipeline.ps1
+
+# Stop all services and pipeline components
+.\scripts\stop-pipeline.ps1
+```
+
+### 2. Manual Pipeline Execution
+
+#### Step A: Launch IoT Sensor Simulator (Kafka Producer)
+```bash
+# Run simulator script
+python -m src.ingestion.sensor_simulator.producer
+```
+
+#### Step B: Execute Spark Jobs inside `spark-master` Container
+```bash
+# Enter Spark Master container
+docker exec -it agri-spark-master bash
+
+# Run Bronze Streaming Ingestion (Kafka -> MinIO Bronze)
+/opt/spark/scripts/launch_stream_job.sh /opt/spark/apps/src/processing/bronze/streaming_ingestion.py
+
+# Run Silver Batch ETL (Bronze -> MinIO Silver)
+/opt/spark/scripts/run_spark_batch_job.sh /opt/spark/apps/src/processing/silver/clean_sensors.py
+
+# Run Gold Batch Aggregations (Silver -> MinIO Gold -> ClickHouse)
+/opt/spark/scripts/run_spark_batch_job.sh /opt/spark/apps/src/processing/gold/aggregate_metrics.py
+```
+
+#### Step C: Train & Predict with ML Pipelines
+```bash
+# Build training dataset from Silver/Gold layers
+python -m src.ml.build_training_dataset
+
+# Train model
+python -m src.ml.train
+
+# Run inference
+python -m src.ml.predict
+```
 
 ---
 

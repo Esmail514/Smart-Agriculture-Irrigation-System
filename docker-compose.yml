@@ -88,10 +88,10 @@ x-restart-policy: &restart-policy
 x-airflow-common-env:
   # Database backend
   &airflow-common-env
-  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_AIRFLOW_DB}
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${INTERNAL_POSTGRES_PORT}/${POSTGRES_AIRFLOW_DB}
   # Celery broker & backend
   AIRFLOW__CELERY__BROKER_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/0
-  AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_AIRFLOW_DB}
+  AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${INTERNAL_POSTGRES_PORT}/${POSTGRES_AIRFLOW_DB}
   # Core settings
   AIRFLOW__CORE__EXECUTOR: ${AIRFLOW_EXECUTOR}
   AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
@@ -105,7 +105,7 @@ x-airflow-common-env:
   # Scheduler
   AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 60
   # Connections for project services
-  AIRFLOW_CONN_POSTGRES_DEFAULT: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+  AIRFLOW_CONN_POSTGRES_DEFAULT: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${INTERNAL_POSTGRES_PORT}/${POSTGRES_DB}
   AIRFLOW_CONN_KAFKA_DEFAULT: kafka://kafka:9092
   AIRFLOW_CONN_MINIO_DEFAULT: s3://${MINIO_ROOT_USER}:${MINIO_ROOT_PASSWORD}@minio:9000
   # Variables - MinIO / S3
@@ -116,10 +116,11 @@ x-airflow-common-env:
   TZ: ${TZ}
 
 x-airflow-common-volumes: &airflow-common-volumes
-  - ./airflow/dags:/opt/airflow/dags:rw
-  - ./airflow/plugins:/opt/airflow/plugins:rw
-  - ./airflow/config:/opt/airflow/config:ro
+  - ./orchestration/airflow/dags:/opt/airflow/dags:rw
+  - ./orchestration/airflow/plugins:/opt/airflow/plugins:rw
+  - ./orchestration/airflow/config:/opt/airflow/config:ro
   - airflow_logs:/opt/airflow/logs
+  - /var/run/docker.sock:/var/run/docker.sock
 
 x-airflow-common-depends: &airflow-common-depends
   postgres:
@@ -136,6 +137,25 @@ x-spark-common-env:
   SPARK_HADOOP_FS_S3A_PATH_STYLE_ACCESS: "true"
   SPARK_HADOOP_FS_S3A_IMPL: org.apache.hadoop.fs.s3a.S3AFileSystem
   SPARK_HADOOP_FS_S3A_CONNECTION_SSL_ENABLED: "false"
+  # MinIO / Lakehouse (for code that reads MINIO_* / LAKEHOUSE_BUCKET env vars)
+  MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+  MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+  MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+  LAKEHOUSE_BUCKET: ${LAKEHOUSE_BUCKET:-agri-lakehouse}
+  # PostgreSQL (for Spark JDBC reads of irrigation_rules)
+  POSTGRES_HOST: ${POSTGRES_HOST}
+  POSTGRES_PORT: ${INTERNAL_POSTGRES_PORT}
+  POSTGRES_DB: ${POSTGRES_DB}
+  POSTGRES_USER: ${POSTGRES_USER}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  # Kafka (for streaming sources)
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  KAFKA_TOPIC_SENSORS: ${KAFKA_TOPIC_SENSORS}
+  KAFKA_TOPIC_WEATHER: ${KAFKA_TOPIC_WEATHER}
+  KAFKA_TOPIC_ALERTS: ${KAFKA_TOPIC_ALERTS}
+  KAFKA_TOPIC_COMMANDS: ${KAFKA_TOPIC_COMMANDS}
+  STREAM_TRIGGER_INTERVAL: ${STREAM_TRIGGER_INTERVAL}
+  OPENWEATHER_API_KEY: ${OPENWEATHER_API_KEY}
   # ClickHouse JDBC (for Spark → ClickHouse writes)
   CLICKHOUSE_HOST: ${CLICKHOUSE_HOST}
   CLICKHOUSE_HTTP_PORT: ${CLICKHOUSE_HTTP_PORT}
@@ -167,7 +187,7 @@ services:
       TZ: ${TZ}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./sql/postgres/init:/docker-entrypoint-initdb.d:ro
     ports:
       - "${POSTGRES_PORT}:5432"
     networks:
@@ -248,7 +268,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_LOG_RETENTION_HOURS: 168
       KAFKA_LOG_SEGMENT_BYTES: 1073741824
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
 
       # --- JMX for Prometheus monitoring ---
@@ -259,9 +279,7 @@ services:
       TZ: ${TZ}
     volumes:
       - kafka_data:/opt/kafka/data/logs
-      - ./configs/kafka/kafka-topics-init.sh:/etc/kafka/docker/run.sh.d/topics-init.sh:ro
     ports:
-      - "9092:9092" # Internal broker
       - "9094:9094" # External access from host
       - "9999:9999" # JMX
     networks:
@@ -286,16 +304,35 @@ services:
         condition: service_healthy
     networks:
       - agri-net
+    environment:
+      KAFKA_TOPIC_SENSORS: ${KAFKA_TOPIC_SENSORS}
+      KAFKA_TOPIC_WEATHER: ${KAFKA_TOPIC_WEATHER}
+      KAFKA_TOPIC_ALERTS: ${KAFKA_TOPIC_ALERTS}
+      KAFKA_TOPIC_COMMANDS: ${KAFKA_TOPIC_COMMANDS}
+      TZ: ${TZ}
     entrypoint: [ "/bin/bash", "-c" ]
-    command: |
-      
-      echo 'Waiting for Kafka to be ready...'
-      cub kafka-ready -b kafka:9092 1 30
+    command: >
+      "
+        set -e
+        echo 'Waiting for Kafka to be ready...'
+        for i in $$(seq 1 30); do
+          if /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list >/dev/null 2>&1; then
+            break
+          fi
+          echo \"kafka not ready (attempt $$i/30), retrying in 2s...\"
+          sleep 2
+        done
 
-      echo 'Creating Kafka topics...'
-      kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic sensor_data --partitions 3 --replication-factor 1
+        echo 'Creating Kafka topics...'
+        /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --topic $${KAFKA_TOPIC_SENSORS} --partitions 3 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --topic sensor-data --partitions 3 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --topic $${KAFKA_TOPIC_WEATHER} --partitions 2 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --topic $${KAFKA_TOPIC_ALERTS} --partitions 2 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --topic $${KAFKA_TOPIC_COMMANDS} --partitions 2 --replication-factor 1
 
-      echo 'All topics created successfully!'
+        echo 'All topics created successfully!'
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
+      "
 
   # Kafka UI - Web interface to monitor topics, consumers, messages
   kafka-ui:
@@ -391,7 +428,7 @@ services:
   # LAYER 4: PROCESSING ENGINE - Apache Spark 3.5
   # Standalone cluster: Master + Worker + History Server
   # Uses jupyter/pyspark-notebook as base (contains Spark 3.5)
-  # ===========================================================
+  # ===========================================================1
 
   # Spark Master - Coordinates job submissions and resource management
   spark-master:
@@ -409,12 +446,14 @@ services:
       SPARK_DAEMON_MEMORY: 512m
     volumes:
       - spark_master_data:/opt/spark/work-dir
+      - spark_history_data:/tmp/spark-events
       - spark_jars_cache:/home/jovyan/.ivy2
-      - ./spark/conf/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf:ro
-      - ./spark/conf/log4j2.properties:/usr/local/spark/conf/log4j2.properties:ro
-      - ./spark/jars:/opt/spark/extra-jars:ro
-      - ./spark/apps:/opt/spark/apps:rw
-      - ./spark/utils:/opt/spark/utils:ro
+      - ./infra/spark/conf/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf:ro
+      - ./infra/spark/conf/log4j2.properties:/usr/local/spark/conf/log4j2.properties:ro
+      - ./infra/spark/jars:/opt/spark/extra-jars:ro
+      - ./src/processing:/opt/spark/apps:rw
+      - ./src/common:/opt/spark/apps/common:rw
+      - ./scripts:/opt/spark/scripts:ro
     ports:
       - "8090:${SPARK_MASTER_WEBUI_PORT}" # Spark Master Web UI
       - "7077:${SPARK_MASTER_PORT}" # Spark Master port
@@ -423,6 +462,7 @@ services:
     command: >
       bash -c "
         export SPARK_HOME=/usr/local/spark &&
+        bash /opt/spark/scripts/auto_kill_streaming_jobs.sh &
         $$SPARK_HOME/sbin/start-master.sh --host spark-master --port ${SPARK_MASTER_PORT} --webui-port ${SPARK_MASTER_WEBUI_PORT} &&
         tail -f $$SPARK_HOME/logs/*.out
       "
@@ -459,12 +499,14 @@ services:
       SPARK_DAEMON_MEMORY: 512m
     volumes:
       - spark_worker_data:/opt/spark/work-dir
+      - spark_history_data:/tmp/spark-events
       - spark_jars_cache:/home/jovyan/.ivy2
-      - ./spark/conf/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf:ro
-      - ./spark/conf/log4j2.properties:/usr/local/spark/conf/log4j2.properties:ro
-      - ./spark/jars:/opt/spark/extra-jars:ro
-      - ./spark/apps:/opt/spark/apps:rw
-      - ./spark/utils:/opt/spark/utils:ro
+      - ./infra/spark/conf/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf:ro
+      - ./infra/spark/conf/log4j2.properties:/usr/local/spark/conf/log4j2.properties:ro
+      - ./infra/spark/jars:/opt/spark/extra-jars:ro
+      - ./src/processing:/opt/spark/apps:rw
+      - ./src/common:/opt/spark/apps/common:rw
+      - ./scripts:/opt/spark/scripts:ro
     ports:
       - "8091:${SPARK_WORKER_WEBUI_PORT}" # Spark Worker Web UI
     networks:
@@ -502,10 +544,11 @@ services:
     volumes:
       - spark_history_data:/tmp/spark-events
       - spark_jars_cache:/home/jovyan/.ivy2
-      - ./spark/conf/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf:ro
-      - ./spark/conf/log4j2.properties:/usr/local/spark/conf/log4j2.properties:ro
-      - ./spark/apps:/opt/spark/apps:rw
-      - ./spark/utils:/opt/spark/utils:ro
+      - ./infra/spark/conf/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf:ro
+      - ./infra/spark/conf/log4j2.properties:/usr/local/spark/conf/log4j2.properties:ro
+      - ./src/processing:/opt/spark/apps:rw
+      - ./src/common:/opt/spark/apps/common:rw
+      - ./scripts:/opt/spark/scripts:ro
     ports:
       - "18080:18080" # Spark History Server Web UI
     networks:
@@ -527,48 +570,6 @@ services:
         limits:
           memory: 512m
 
-  # Jupyter Notebook with PySpark - Interactive development environment
-
-  # jupyter:
-  #   image: jupyter/pyspark-notebook:spark-3.5.0
-  #   container_name: agri-jupyter
-  #   hostname: jupyter
-  #   <<: [ *restart-policy, *common-logging ]
-  #   depends_on:
-  #     spark-master:
-  #       condition: service_healthy
-  #     minio-init:
-  #       condition: service_completed_successfully
-  #   environment:
-  #     <<: *spark-common-env
-  #     # Connect to Spark Standalone cluster
-  #     SPARK_MASTER: spark://spark-master:${SPARK_MASTER_PORT}
-  #     JUPYTER_TOKEN: ${JUPYTER_TOKEN}
-  #     JUPYTER_ENABLE_LAB: "yes"
-  #     # Pre-configure Spark packages (Iceberg + S3A + Kafka + ClickHouse)
-  #     SPARK_OPTS: >-
-  #       --master spark://spark-master:7077 --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.5.2, org.apache.hadoop:hadoop-aws:3.3.4, com.amazonaws:aws-java-sdk-bundle:1.12.262, org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0, com.clickhouse:clickhouse-jdbc:0.6.0 --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions --conf spark.sql.catalog.lakehouse=org.apache.iceberg.spark.SparkCatalog --conf spark.sql.catalog.lakehouse.type=hadoop --conf spark.sql.catalog.lakehouse.warehouse=s3a://warehouse/ --conf spark.sql.catalog.lakehouse.io-impl=org.apache.iceberg.aws.s3.S3FileIO --conf spark.sql.catalog.lakehouse.s3.endpoint=http://minio:9000 --conf spark.sql.catalog.lakehouse.s3.path-style-access=true --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000 --conf spark.hadoop.fs.s3a.access.key=${MINIO_ROOT_USER} --conf spark.hadoop.fs.s3a.secret.key=${MINIO_ROOT_PASSWORD} --conf spark.hadoop.fs.s3a.path.style.access=true --conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem --conf spark.hadoop.fs.s3a.connection.ssl.enabled=false --conf spark.eventLog.enabled=true --conf spark.eventLog.dir=s3a://logs/spark-events --conf spark.history.fs.logDirectory=s3a://logs/spark-events
-  #   volumes:
-  #     - ./notebooks:/home/jovyan/work:rw
-  #     - spark_jars_cache:/home/jovyan/.ivy2
-  #     - ./spark/conf/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf:ro
-  #     - ./spark/apps:/opt/spark/apps:rw
-  #     - ./spark/utils:/opt/spark/utils:ro
-  #   ports:
-  #     - "${JUPYTER_PORT}:8888" # JupyterLab UI
-  #   networks:
-  #     - agri-net
-  #   healthcheck:
-  #     test: [ "CMD-SHELL", "curl -sf http://localhost:8888/api > /dev/null" ]
-  #     interval: 20s
-  #     timeout: 10s
-  #     retries: 10
-  #     start_period: 40s
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         memory: 2g
-
   # ===========================================================
   # LAYER 5: ANALYTICS ENGINE
   # ClickHouse - Columnar OLAP for Gold Layer / Power BI
@@ -586,9 +587,9 @@ services:
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - clickhouse_logs:/var/log/clickhouse-server
-      - ./clickhouse/config/prometheus.xml:/etc/clickhouse-server/config.d/prometheus.xml:ro
-      - ./clickhouse/config/users.xml:/etc/clickhouse-server/users.d/agri-users.xml:ro
-      - ./clickhouse/init:/docker-entrypoint-initdb.d:ro
+      - ./infra/clickhouse/config/prometheus.xml:/etc/clickhouse-server/config.d/prometheus.xml:ro
+      - ./infra/clickhouse/config/users.xml:/etc/clickhouse-server/users.d/agri-users.xml:ro
+      - ./sql/clickhouse/init:/docker-entrypoint-initdb.d:ro
     ports:
       - "8123:8123" # HTTP interface (Power BI, REST)
       - "9002:9000" # Native TCP interface
@@ -633,12 +634,17 @@ services:
       _AIRFLOW_WWW_USER_EMAIL: ${AIRFLOW_ADMIN_EMAIL}
       _AIRFLOW_WWW_USER_ROLE: Admin
     volumes:
-      - ./airflow/dags:/opt/airflow/dags:rw
-      - ./airflow/plugins:/opt/airflow/plugins:rw
+      - ./orchestration/airflow/dags:/opt/airflow/dags:rw
+      - ./orchestration/airflow/plugins:/opt/airflow/plugins:rw
       - airflow_logs:/opt/airflow/logs
     networks:
       - agri-net
-    command: bash -c "airflow version && echo 'Airflow init complete!'"
+    command: >
+      bash -c "
+        airflow db migrate &&
+        airflow users create --username $${AIRFLOW_ADMIN_USER} --password $${AIRFLOW_ADMIN_PASSWORD} --firstname $${AIRFLOW_ADMIN_FIRSTNAME} --lastname $${AIRFLOW_ADMIN_LASTNAME} --email $${AIRFLOW_ADMIN_EMAIL} --role Admin || true
+        echo 'Airflow init complete!'
+      "
 
   # Airflow Webserver - Web UI for DAG management
   airflow-webserver:
@@ -772,8 +778,8 @@ services:
       - "--web.enable-lifecycle"
       - "--web.enable-admin-api"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./prometheus/rules:/etc/prometheus/rules:ro
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/prometheus/rules:/etc/prometheus/rules:ro
       - prometheus_data:/prometheus
     ports:
       - "9090:9090" # Prometheus Web UI + API
@@ -811,8 +817,8 @@ services:
       TZ: ${TZ}
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
       - "3000:3000" # Grafana Web UI
     networks:

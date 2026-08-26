@@ -1,0 +1,40 @@
+name: Test
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          # Install only non-Spark dependencies for syntax/import checks
+          pip install psycopg2-binary requests pandas kafka-python
+
+      - name: Syntax check — all Python files in src/
+        run: |
+          find src/ -name "*.py" | while read f; do
+            python -m py_compile "$f" && echo "OK: $f" || exit 1
+          done
+
+      - name: Syntax check — orchestration DAGs
+        run: |
+          find orchestration/ -name "*.py" | while read f; do
+            python -m py_compile "$f" && echo "OK: $f" || exit 1
+          done
+
+      - name: Run smoke tests
+        run: |
+          python tests/smoke/test_smoke.py

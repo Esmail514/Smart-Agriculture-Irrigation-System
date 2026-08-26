@@ -1,0 +1,909 @@
+{
+  "__inputs": [],
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "10.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "grafana-clickhouse-datasource",
+      "name": "ClickHouse",
+      "version": "1.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "datasource",
+          "uid": "grafana"
+        },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "مراقبة حية لأحوال المزرعة — رطوبة التربة، درجة الحرارة، الرطوبة، تنبيهات الري، وتوزيع حالة المياه.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "icon": "external link",
+      "title": "مراقبة المنصة",
+      "tooltip": "الذهاب إلى لوحة مراقبة المنصة",
+      "type": "link",
+      "url": "/d/platform_monitoring_v2"
+    },
+    {
+      "icon": "external link",
+      "title": "توصيات الذكاء الاصطناعي",
+      "tooltip": "الذهاب إلى لوحة توصيات الذكاء الاصطناعي",
+      "type": "link",
+      "url": "/d/ai_recommendations_v2"
+    }
+  ],
+  "liveNow": true,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "title": "🌿 موشرات الأداء الرئيسية لأحوال المزرعة",
+      "type": "row"
+    },
+    {
+      "id": 6,
+      "title": "🚨 تنبيهات الري النشطة",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "rawSql": "SELECT count() AS value FROM agri_gold.irrigation_alerts WHERE event_time >= now() - INTERVAL 24 HOUR",
+          "queryType": "sql",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "text": {
+          "titleSize": 13,
+          "valueSize": 30
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "0",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#16A34A",
+                "value": null
+              },
+              {
+                "color": "#D97706",
+                "value": 1
+              },
+              {
+                "color": "#DC2626",
+                "value": 10
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "title": "🔴 المناطق الجافة",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "rawSql": "SELECT sum(dry_readings) AS value FROM agri_gold.farm_summary_latest",
+          "queryType": "sql",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "text": {
+          "titleSize": 13,
+          "valueSize": 30
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "0",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#16A34A",
+                "value": null
+              },
+              {
+                "color": "#D97706",
+                "value": 5
+              },
+              {
+                "color": "#DC2626",
+                "value": 20
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "title": "✅ المناطق السليمة",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "rawSql": "SELECT sum(healthy_readings) AS value FROM agri_gold.farm_summary_latest",
+          "queryType": "sql",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "text": {
+          "titleSize": 13,
+          "valueSize": 30
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "0",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#16A34A"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#16A34A",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 31,
+      "title": "متوسط رطوبة الهواء (تهامة)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 2,
+        "x": 12,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "rawSql": "SELECT avg(avg_air_humidity) AS value FROM agri_gold.farm_summary_latest WHERE lowerUTF8(farm_name) LIKE '%tihama%' OR farm_name LIKE '%تهامة%' OR lowerUTF8(farm_name) LIKE '%hudaydah%' OR farm_name LIKE '%الحديدة%'",
+          "queryType": "sql",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "text": {
+          "titleSize": 13,
+          "valueSize": 30
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "min": 0,
+          "max": 100,
+          "noValue": "N/A",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#DC2626",
+                "value": null
+              },
+              {
+                "color": "#D97706",
+                "value": 30
+              },
+              {
+                "color": "#16A34A",
+                "value": 50
+              },
+              {
+                "color": "#D97706",
+                "value": 85
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "title": "متوسط رطوبة الهواء (الجوف)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 2,
+        "x": 14,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "rawSql": "SELECT avg(avg_air_humidity) AS value FROM agri_gold.farm_summary_latest WHERE lowerUTF8(farm_name) LIKE '%jawf%' OR farm_name LIKE '%الجوف%'",
+          "queryType": "sql",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "text": {
+          "titleSize": 13,
+          "valueSize": 30
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "min": 0,
+          "max": 100,
+          "noValue": "N/A",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#DC2626",
+                "value": null
+              },
+              {
+                "color": "#D97706",
+                "value": 30
+              },
+              {
+                "color": "#16A34A",
+                "value": 50
+              },
+              {
+                "color": "#D97706",
+                "value": 85
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 41,
+      "title": "متوسط درجة حرارة الهواء (تهامة)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 2,
+        "x": 16,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "rawSql": "SELECT avg(avg_air_temperature) AS value FROM agri_gold.farm_summary_latest WHERE lowerUTF8(farm_name) LIKE '%tihama%' OR farm_name LIKE '%تهامة%' OR lowerUTF8(farm_name) LIKE '%hudaydah%' OR farm_name LIKE '%الحديدة%'",
+          "queryType": "sql",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "text": {
+          "titleSize": 13,
+          "valueSize": 30
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "noValue": "N/A",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#0284C7",
+                "value": null
+              },
+              {
+                "color": "#16A34A",
+                "value": 15
+              },
+              {
+                "color": "#D97706",
+                "value": 35
+              },
+              {
+                "color": "#DC2626",
+                "value": 42
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "متوسط درجة حرارة الهواء (الجوف)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 2,
+        "x": 18,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "rawSql": "SELECT avg(avg_air_temperature) AS value FROM agri_gold.farm_summary_latest WHERE lowerUTF8(farm_name) LIKE '%jawf%' OR farm_name LIKE '%الجوف%'",
+          "queryType": "sql",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "text": {
+          "titleSize": 13,
+          "valueSize": 30
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "noValue": "N/A",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#0284C7",
+                "value": null
+              },
+              {
+                "color": "#16A34A",
+                "value": 15
+              },
+              {
+                "color": "#D97706",
+                "value": 35
+              },
+              {
+                "color": "#DC2626",
+                "value": 42
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 42,
+      "title": "متوسط رطوبة التربة (تهامة)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 2,
+        "x": 20,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "rawSql": "SELECT avg(avg_soil_moisture) AS value FROM agri_gold.farm_summary_latest WHERE lowerUTF8(farm_name) LIKE '%tihama%' OR farm_name LIKE '%تهامة%' OR lowerUTF8(farm_name) LIKE '%hudaydah%' OR farm_name LIKE '%الحديدة%'",
+          "queryType": "sql",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "text": {
+          "titleSize": 13,
+          "valueSize": 30
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "min": 0,
+          "max": 100,
+          "noValue": "N/A",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#DC2626",
+                "value": null
+              },
+              {
+                "color": "#D97706",
+                "value": 30
+              },
+              {
+                "color": "#16A34A",
+                "value": 50
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 1,
+      "title": "متوسط رطوبة التربة (الجوف)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 2,
+        "x": 22,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "rawSql": "SELECT avg(avg_soil_moisture) AS value FROM agri_gold.farm_summary_latest WHERE lowerUTF8(farm_name) LIKE '%jawf%' OR farm_name LIKE '%الجوف%'",
+          "queryType": "sql",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "text": {
+          "titleSize": 13,
+          "valueSize": 30
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "min": 0,
+          "max": 100,
+          "noValue": "N/A",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#DC2626",
+                "value": null
+              },
+              {
+                "color": "#D97706",
+                "value": 30
+              },
+              {
+                "color": "#16A34A",
+                "value": 50
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "id": 103,
+      "title": "🗺️ خريطة المزارع — المحاصيل والتنبيهات",
+      "type": "row"
+    },
+    {
+      "id": 30,
+      "title": "خريطة المزارع — المحاصيل وحالة الري (الجوف وتهامة)",
+      "type": "geomap",
+      "gridPos": {
+        "h": 16,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "rawSql": "SELECT toFloat64(16.1591) AS latitude, toFloat64(44.7825) AS longitude, 'مزرعة الحزم - الجوف' AS farm_name, 'الجوف' AS region, 'القمح' AS crop_name, 0 AS soil_moisture, 30 AS air_temperature, 'Optimal' AS water_status, 0 AS alert_active UNION ALL SELECT toFloat64(15.9333), toFloat64(45.3833), 'مزرعة المطمة - الجوف', 'الجوف', 'القمح', 0, 30, 'Optimal', 0 UNION ALL SELECT toFloat64(16.7500), toFloat64(45.7000), 'مزرعة خب والشعف - الجوف', 'الجوف', 'القمح', 0, 30, 'Optimal', 0 UNION ALL SELECT toFloat64(14.5160), toFloat64(43.3240), 'مزرعة بيت الفقيه - تهامة', 'تهامة', 'الموز', 0, 32, 'Optimal', 0 UNION ALL SELECT toFloat64(14.8300), toFloat64(43.3830), 'مزرعة المراوعة - تهامة', 'تهامة', 'الموز', 0, 32, 'Optimal', 0 UNION ALL SELECT toFloat64(14.6900), toFloat64(43.2860), 'مزرعة المنصورة - تهامة', 'تهامة', 'الموز', 0, 32, 'Optimal', 0",
+          "queryType": "sql",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "options": {
+        "view": {
+          "id": "zero",
+          "lat": 15.7,
+          "lon": 44.1,
+          "zoom": 6
+        },
+        "controls": {
+          "mouseWheelZoom": true,
+          "showAttribution": true,
+          "showDebug": false,
+          "showMeasure": false,
+          "showScale": true,
+          "showZoom": true
+        },
+        "layers": [
+          {
+            "type": "markers",
+            "name": "المزارع",
+            "config": {
+              "style": {
+                "size": {
+                  "fixed": 15,
+                  "max": 30,
+                  "min": 10
+                },
+                "color": {
+                  "fixed": "#16A34A"
+                },
+                "fillOpacity": 0.9,
+                "lineWidth": 2,
+                "symbol": {
+                  "mode": "fixed",
+                  "fixed": "img/icons/marker/circle.svg"
+                },
+                "text": {
+                  "field": "farm_name",
+                  "mode": "field"
+                },
+                "textConfig": {
+                  "fontSize": 12,
+                  "textAlign": "center",
+                  "textBaseline": "bottom",
+                  "offsetY": -12
+                }
+              },
+              "showLegend": true
+            },
+            "location": {
+              "mode": "coords",
+              "longitude": "longitude",
+              "latitude": "latitude"
+            },
+            "tooltip": true
+          }
+        ],
+        "basemap": {
+          "type": "default",
+          "name": "default",
+          "config": {
+            "showLabels": true
+          }
+        },
+        "tooltip": {
+          "mode": "details"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#16A34A",
+                "value": null
+              },
+              {
+                "color": "#DC2626",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": [
+    "الزراعة-الذكية",
+    "الزراعة",
+    "الإحصائيات",
+    "التربة",
+    "الري"
+  ],
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m"
+    ]
+  },
+  "timezone": "browser",
+  "title": "🌾 إحصائيات الزراعة — الري الذكي",
+  "uid": "agri_statistics_v2",
+  "version": 1,
+  "weekStart": ""
+}

@@ -1,0 +1,37 @@
+# ============================================================
+# Smart Agriculture Irrigation System — Python Dependencies
+# ============================================================
+# Split into logical sections for clarity. Pin major versions where
+# breaking changes could affect Spark job compatibility.
+# ============================================================
+
+# --- Streaming / Data Processing (Spark layer) ---
+pyspark==3.5.0
+pyarrow>=14.0.0
+pandas>=2.0.0
+numpy>=1.24.0
+
+# --- Database / Message Queue drivers ---
+psycopg2-binary==2.9.9
+kafka-python==2.0.2
+clickhouse-connect==0.7.0
+requests==2.31.0
+
+# --- Data Lake (MinIO S3A) ---
+# Handled inside Spark via hadoop-aws / aws-java-sdk-bundle JARs
+# dropped in ./infra/spark/jars/. No Python deps required for that.
+
+# --- Airflow utilities ---
+docker==7.0.0
+pendulum>=3.0.0
+
+# --- ML (training & inference) ---
+scikit-learn==1.4.2
+joblib==1.4.2
+xgboost==2.0.3
+lightgbm==4.3.0
+catboost==1.2.5
+shap==0.45.0
+
+# --- Testing ---
+pytest==8.0.2

@@ -1,0 +1,4 @@
+import os
+
+STREAM_TRIGGER_INTERVAL = os.getenv("STREAM_TRIGGER_INTERVAL", "1 minute")
+TIMESTAMP_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'"
