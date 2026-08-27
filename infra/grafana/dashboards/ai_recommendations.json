@@ -288,7 +288,7 @@
           "refId": "A",
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
           "rawSql": "SELECT toStartOfHour(prediction_time) AS time, avg(prediction_confidence) AS \"متوسط الثقة\" FROM agri_gold.ml_predictions WHERE prediction_time >= now() - INTERVAL 24 HOUR GROUP BY time ORDER BY time",
-          "format": "time_series"
+          "format": "table"
         }
       ]
     },
