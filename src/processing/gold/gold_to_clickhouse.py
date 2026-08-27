@@ -6,6 +6,9 @@ from common.config import (
     CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD,
     GOLD_ZONE_HISTORY_PATH,
+    GOLD_ZONE_LATEST_PATH,
+    GOLD_FARM_HISTORY_PATH,
+    GOLD_FARM_LATEST_PATH,
     GOLD_ALERTS_PATH,
     LAKEHOUSE_BUCKET,
 )
@@ -15,10 +18,29 @@ setup_logging()
 logger = get_logger("gold_to_clickhouse")
 
 
-def write_zone(batch_df, batch_id):
-    if batch_df.rdd.isEmpty():
-        return
+def _jdbc_options():
+    return {
+        "driver": CLICKHOUSE_JDBC_DRIVER,
+        "url": CLICKHOUSE_JDBC_URL,
+        "user": CLICKHOUSE_USER,
+        "password": CLICKHOUSE_PASSWORD,
+    }
 
+
+def _truncate_table(spark, table_name):
+    jvm = spark.sparkContext._jvm
+    conn = jvm.java.sql.DriverManager.getConnection(
+        CLICKHOUSE_JDBC_URL, CLICKHOUSE_USER, CLICKHOUSE_PASSWORD,
+    )
+    try:
+        stmt = conn.createStatement()
+        stmt.execute(f"TRUNCATE TABLE {table_name}")
+        stmt.close()
+    finally:
+        conn.close()
+
+
+def _jdbc_append(batch_df, table_name):
     (
         batch_df.write
         .format("jdbc")
@@ -27,64 +49,115 @@ def write_zone(batch_df, batch_id):
         .option("url", CLICKHOUSE_JDBC_URL)
         .option("user", CLICKHOUSE_USER)
         .option("password", CLICKHOUSE_PASSWORD)
-        .option("dbtable", "agri_gold.zone_summary_history")
+        .option("dbtable", table_name)
         .save()
     )
-    logger.info("zone_summary_written_to_clickhouse batch_id=%s rows=%d", batch_id, batch_df.count())
 
 
-def write_alerts(batch_df, batch_id):
+def _jdbc_truncate_and_insert(spark, batch_df, table_name):
+    _truncate_table(spark, table_name)
+    _jdbc_append(batch_df, table_name)
+
+
+def write_zone_history(spark, batch_df, batch_id):
     if batch_df.rdd.isEmpty():
         return
+    _jdbc_append(batch_df, "agri_gold.zone_summary_history")
+    logger.info("zone_history_written batch_id=%s rows=%d", batch_id, batch_df.count())
 
-    (
-        batch_df.write
-        .format("jdbc")
-        .mode("append")
-        .option("driver", CLICKHOUSE_JDBC_DRIVER)
-        .option("url", CLICKHOUSE_JDBC_URL)
-        .option("user", CLICKHOUSE_USER)
-        .option("password", CLICKHOUSE_PASSWORD)
-        .option("dbtable", "agri_gold.irrigation_alerts")
-        .save()
-    )
-    logger.info("alerts_written_to_clickhouse batch_id=%s rows=%d", batch_id, batch_df.count())
+
+def write_zone_latest(spark, batch_df, batch_id):
+    if batch_df.rdd.isEmpty():
+        return
+    _jdbc_truncate_and_insert(spark, batch_df, "agri_gold.zone_summary_latest")
+    logger.info("zone_latest_written batch_id=%s rows=%d", batch_id, batch_df.count())
+
+
+def write_farm_history(spark, batch_df, batch_id):
+    if batch_df.rdd.isEmpty():
+        return
+    _jdbc_append(batch_df, "agri_gold.farm_summary_history")
+    logger.info("farm_history_written batch_id=%s rows=%d", batch_id, batch_df.count())
+
+
+def write_farm_latest(spark, batch_df, batch_id):
+    if batch_df.rdd.isEmpty():
+        return
+    _jdbc_truncate_and_insert(spark, batch_df, "agri_gold.farm_summary_latest")
+    logger.info("farm_latest_written batch_id=%s rows=%d", batch_id, batch_df.count())
+
+
+def write_alerts(spark, batch_df, batch_id):
+    if batch_df.rdd.isEmpty():
+        return
+    _jdbc_append(batch_df, "agri_gold.irrigation_alerts")
+    logger.info("alerts_written batch_id=%s rows=%d", batch_id, batch_df.count())
 
 
 def main():
     spark = create_spark("Gold To ClickHouse")
     spark.sparkContext.setLogLevel("WARN")
 
-    # Spark cannot infer schemas for streaming sources - derive them from a
-    # static read of the same (already-populated) Gold directories.
     zone_schema = spark.read.parquet(GOLD_ZONE_HISTORY_PATH).schema
     alerts_schema = spark.read.parquet(GOLD_ALERTS_PATH).schema
+    farm_schema = spark.read.parquet(GOLD_FARM_HISTORY_PATH).schema
 
-    zone_df = spark.readStream.schema(zone_schema).parquet(GOLD_ZONE_HISTORY_PATH)
+    zone_hist_df = spark.readStream.schema(zone_schema).parquet(GOLD_ZONE_HISTORY_PATH)
+    zone_latest_df = spark.readStream.schema(zone_schema).parquet(GOLD_ZONE_LATEST_PATH)
+    farm_hist_df = spark.readStream.schema(farm_schema).parquet(GOLD_FARM_HISTORY_PATH)
+    farm_latest_df = spark.readStream.schema(farm_schema).parquet(GOLD_FARM_LATEST_PATH)
     alerts_df = spark.readStream.schema(alerts_schema).parquet(GOLD_ALERTS_PATH)
 
-    checkpoints = {
-        "zone": f"s3a://{LAKEHOUSE_BUCKET}/checkpoints/ch_zone",
-        "alerts": f"s3a://{LAKEHOUSE_BUCKET}/checkpoints/ch_alerts",
-    }
+    cp = lambda name: f"s3a://{LAKEHOUSE_BUCKET}/checkpoints/ch_{name}"
 
-    zone_query = (
-        zone_df.writeStream
-        .foreachBatch(write_zone)
+    zone_hist_q = (
+        zone_hist_df.writeStream
+        .foreachBatch(lambda df, bid: write_zone_history(spark, df, bid))
         .outputMode("append")
-        .option("checkpointLocation", checkpoints["zone"])
+        .option("checkpointLocation", cp("zone"))
         .start()
     )
 
-    alerts_query = (
+    zone_latest_q = (
+        zone_latest_df.writeStream
+        .foreachBatch(lambda df, bid: write_zone_latest(spark, df, bid))
+        .outputMode("append")
+        .option("checkpointLocation", cp("zone_latest"))
+        .start()
+    )
+
+    farm_hist_q = (
+        farm_hist_df.writeStream
+        .foreachBatch(lambda df, bid: write_farm_history(spark, df, bid))
+        .outputMode("append")
+        .option("checkpointLocation", cp("farm_hist"))
+        .start()
+    )
+
+    farm_latest_q = (
+        farm_latest_df.writeStream
+        .foreachBatch(lambda df, bid: write_farm_latest(spark, df, bid))
+        .outputMode("append")
+        .option("checkpointLocation", cp("farm_latest"))
+        .start()
+    )
+
+    alerts_q = (
         alerts_df.writeStream
-        .foreachBatch(write_alerts)
+        .foreachBatch(lambda df, bid: write_alerts(spark, df, bid))
         .outputMode("append")
-        .option("checkpointLocation", checkpoints["alerts"])
+        .option("checkpointLocation", cp("alerts"))
         .start()
     )
 
-    logger.info("gold_to_clickhouse_streams_started")
+    queries = [
+        (zone_hist_q, "zone_hist"),
+        (zone_latest_q, "zone_latest"),
+        (farm_hist_q, "farm_hist"),
+        (farm_latest_q, "farm_latest"),
+        (alerts_q, "alerts"),
+    ]
+    logger.info("gold_to_clickhouse_streams_started count=%d", len(queries))
 
     try:
         spark.streams.awaitAnyTermination()
@@ -92,7 +165,7 @@ def main():
         logger.exception("gold_to_clickhouse_failed")
         raise
     finally:
-        for query, label in [(zone_query, "zone"), (alerts_query, "alerts")]:
+        for query, label in queries:
             logger.info(
                 "query_status label=%s active=%s last_progress=%s",
                 label, query.isActive, query.lastProgress,
