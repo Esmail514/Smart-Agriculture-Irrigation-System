@@ -34,7 +34,10 @@ fi
 
 APPS_DIR="/opt/spark/apps"
 COMMON_DIR="/opt/spark/apps/common"   # src/common is mounted here (read-only)
-COMMON_ZIP="/tmp/common.zip"          # writable temp location for --py-files packaging
+# Unique per-invocation: consecutive DAG task launches run back-to-back and
+# would otherwise rewrite a SHARED /tmp/common.zip while an earlier
+# spark-submit is still reading it (FileNotFoundException at driver start).
+COMMON_ZIP="/tmp/common.$$.$(date +%s).zip"
 
 if [ -d "${COMMON_DIR}" ]; then
     rm -f "${COMMON_ZIP}"
@@ -68,9 +71,12 @@ LOG_FILE="${APPS_DIR}/logs/${JOB_FILENAME%.py}.log"
 mkdir -p "$(dirname "${LOG_FILE}")"
 
 # nohup + & → fire-and-forget for streaming jobs (run indefinitely)
+# spark.cores.max=1: each app gets exactly 1 executor (1 core, 512m heap)
+# so all 4 streaming apps share the 4-core worker concurrently.
 PYTHONPATH="/opt/spark/apps:${PYTHONPATH}" nohup spark-submit \
     --master spark://spark-master:7077 \
     --deploy-mode client \
+    --conf spark.cores.max=1 \
     ${PY_FILES_ARG} \
     "${APPS_DIR}/${JOB_FILENAME}" >> "${LOG_FILE}" 2>&1 &
 
