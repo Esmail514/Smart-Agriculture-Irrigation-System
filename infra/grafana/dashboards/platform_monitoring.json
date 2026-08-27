@@ -26,21 +26,19 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "استخدام المعالج",
+      "title": "الاستعلامات النشطة",
       "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit",
-          "decimals": 1,
-          "min": 0,
-          "max": 1,
+          "unit": "short",
+          "decimals": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.7 },
-              { "color": "red", "value": 0.9 }
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 20 }
             ]
           },
           "mappings": []
@@ -58,10 +56,9 @@
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m]))",
-          "legendFormat": "CPU Usage",
-          "interval": "1m"
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT count() AS value FROM system.processes",
+          "format": "table"
         }
       ]
     },
@@ -70,19 +67,17 @@
       "type": "stat",
       "title": "استخدام الذاكرة",
       "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit",
+          "unit": "bytes",
           "decimals": 1,
-          "min": 0,
-          "max": 1,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.75 },
-              { "color": "red", "value": 0.9 }
+              { "color": "yellow", "value": 1073741824 },
+              { "color": "red", "value": 2147483648 }
             ]
           },
           "mappings": []
@@ -100,10 +95,9 @@
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
-          "legendFormat": "RAM Usage",
-          "interval": "1m"
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT sum(bytes_on_disk) AS value FROM system.parts WHERE active",
+          "format": "table"
         }
       ]
     },
@@ -139,7 +133,7 @@
         {
           "refId": "A",
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT count(*) AS value FROM agri_bronze.zone_summary",
+          "rawSql": "SELECT count(*) AS value FROM agri_gold.zone_summary_history",
           "format": "table"
         }
       ]
@@ -176,7 +170,7 @@
         {
           "refId": "A",
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT count(*) AS value FROM agri_silver.zone_summary_clean",
+          "rawSql": "SELECT count(*) AS value FROM agri_gold.zone_summary_history",
           "format": "table"
         }
       ]
@@ -213,7 +207,7 @@
         {
           "refId": "A",
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT count(*) AS value FROM agri_gold.zone_summary_latest",
+          "rawSql": "SELECT count(*) AS value FROM agri_gold.zone_summary_history",
           "format": "table"
         }
       ]
@@ -252,7 +246,7 @@
         {
           "refId": "A",
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT sum(bytes_on_disk) AS value FROM system.tables WHERE database IN ('agri_bronze', 'agri_silver', 'agri_gold')",
+          "rawSql": "SELECT sum(bytes_on_disk) AS value FROM system.tables WHERE database = 'agri_gold'",
           "format": "table"
         }
       ]
@@ -267,9 +261,9 @@
     {
       "id": 10,
       "type": "stat",
-      "title": "عمال Spark النشطون",
+      "title": "عمليات الإدخال النشطة",
       "gridPos": { "h": 4, "w": 4, "x": 0, "y": 6 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -297,22 +291,21 @@
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(spark_executor_active_executors)",
-          "legendFormat": "Active Executors",
-          "interval": "1m"
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT count() AS value FROM system.part_log WHERE event_type = 'NewPart' AND event_time >= now() - INTERVAL 1 HOUR",
+          "format": "table"
         }
       ]
     },
     {
       "id": 11,
       "type": "stat",
-      "title": "رسائل Kafka",
+      "title": "السجلات الاخيرة",
       "gridPos": { "h": 4, "w": 4, "x": 4, "y": 6 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "short",
           "decimals": 0,
           "thresholds": {
             "mode": "absolute",
@@ -337,19 +330,18 @@
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(kafka_server_BrokerTopicMetrics_MessagesInPerSec_OneMinuteRate)",
-          "legendFormat": "Messages/sec",
-          "interval": "1m"
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT count() AS value FROM system.part_log WHERE event_type = 'NewPart' AND event_time >= now() - INTERVAL 5 MINUTE",
+          "format": "table"
         }
       ]
     },
     {
       "id": 12,
       "type": "stat",
-      "title": "مواضيع Kafka",
+      "title": "جداول البيانات النشطة",
       "gridPos": { "h": 4, "w": 4, "x": 8, "y": 6 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -375,19 +367,18 @@
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "count(kafka_server_BrokerTopicMetrics_MessagesInPerSec_OneMinuteRate) or vector(0)",
-          "legendFormat": "Topics",
-          "interval": "1m"
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT count() AS value FROM system.tables WHERE database = 'agri_gold'",
+          "format": "table"
         }
       ]
     },
     {
       "id": 13,
       "type": "stat",
-      "title": "تشغيلات Airflow DAG",
+      "title": "جداول محدثة حديثاً",
       "gridPos": { "h": 4, "w": 4, "x": 12, "y": 6 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -415,23 +406,22 @@
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "airflow_dag_run_count",
-          "legendFormat": "DAG Runs",
-          "interval": "1m"
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT count(DISTINCT table) AS value FROM system.part_log WHERE event_type = 'NewPart' AND event_time >= now() - INTERVAL 1 HOUR",
+          "format": "table"
         }
       ]
     },
     {
       "id": 14,
       "type": "stat",
-      "title": "كائنات MinIO",
+      "title": "حجم البيانات المخزنة",
       "gridPos": { "h": 4, "w": 4, "x": 16, "y": 6 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
-          "decimals": 0,
+          "unit": "bytes",
+          "decimals": 1,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -453,10 +443,9 @@
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "minio_bucket_objects_total",
-          "legendFormat": "Objects",
-          "interval": "1m"
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT sum(bytes_on_disk) AS value FROM system.parts WHERE active AND database = 'agri_gold'",
+          "format": "table"
         }
       ]
     },
@@ -500,7 +489,7 @@
         {
           "refId": "A",
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT CASE WHEN count(*) > 0 THEN 1 ELSE 0 END AS value FROM agri_bronze.zone_summary WHERE event_time >= now() - INTERVAL 1 HOUR",
+          "rawSql": "SELECT CASE WHEN count(*) > 0 THEN 1 ELSE 0 END AS value FROM agri_gold.zone_summary_history WHERE last_update >= now() - INTERVAL 1 HOUR",
           "format": "table"
         }
       ]
@@ -538,7 +527,7 @@
         {
           "refId": "A",
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT CASE WHEN count(*) > 0 THEN 1 ELSE 0 END AS value FROM agri_silver.zone_summary_clean WHERE event_time >= now() - INTERVAL 1 HOUR",
+          "rawSql": "SELECT CASE WHEN count(*) > 0 THEN 1 ELSE 0 END AS value FROM agri_gold.zone_summary_history WHERE last_update >= now() - INTERVAL 1 HOUR",
           "format": "table"
         }
       ]
@@ -576,7 +565,7 @@
         {
           "refId": "A",
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT CASE WHEN count(*) > 0 THEN 1 ELSE 0 END AS value FROM agri_gold.zone_summary_latest WHERE event_time >= now() - INTERVAL 1 HOUR",
+          "rawSql": "SELECT CASE WHEN count(*) > 0 THEN 1 ELSE 0 END AS value FROM agri_gold.zone_summary_history WHERE last_update >= now() - INTERVAL 1 HOUR",
           "format": "table"
         }
       ]
@@ -614,7 +603,7 @@
         {
           "refId": "A",
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT CASE WHEN count(*) > 0 THEN 1 ELSE 0 END AS value FROM agri_gold.weather_data WHERE event_time >= now() - INTERVAL 1 HOUR",
+          "rawSql": "SELECT CASE WHEN count(*) > 0 THEN 1 ELSE 0 END AS value FROM agri_gold.farm_weather_daily WHERE last_update >= now() - INTERVAL 1 HOUR",
           "format": "table"
         }
       ]
@@ -652,7 +641,7 @@
         {
           "refId": "A",
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT CASE WHEN count(*) > 0 THEN 1 ELSE 0 END AS value FROM agri_gold.ml_predictions WHERE event_time >= now() - INTERVAL 1 HOUR",
+          "rawSql": "SELECT CASE WHEN count(*) > 0 THEN 1 ELSE 0 END AS value FROM agri_gold.ml_predictions WHERE prediction_time >= now() - INTERVAL 1 HOUR",
           "format": "table"
         }
       ]

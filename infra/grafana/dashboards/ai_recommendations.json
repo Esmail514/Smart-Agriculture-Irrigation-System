@@ -57,7 +57,7 @@
         {
           "refId": "A",
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT avg(prediction_confidence) AS value FROM agri_gold.ml_predictions WHERE event_time >= now() - INTERVAL 24 HOUR",
+          "rawSql": "SELECT avg(prediction_confidence) AS value FROM agri_gold.ml_predictions WHERE prediction_time >= now() - INTERVAL 24 HOUR",
           "format": "table"
         }
       ]
@@ -94,7 +94,7 @@
         {
           "refId": "A",
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT count(*) AS value FROM agri_gold.ml_predictions WHERE event_time >= now() - INTERVAL 24 HOUR",
+          "rawSql": "SELECT count(*) AS value FROM agri_gold.ml_predictions WHERE prediction_time >= now() - INTERVAL 24 HOUR",
           "format": "table"
         }
       ]
@@ -131,7 +131,7 @@
         {
           "refId": "A",
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT count(*) AS value FROM agri_gold.ml_predictions WHERE needs_irrigation_today = 1 AND event_time >= now() - INTERVAL 24 HOUR",
+          "rawSql": "SELECT count(*) AS value FROM agri_gold.ml_predictions WHERE needs_irrigation_today = 1 AND prediction_time >= now() - INTERVAL 24 HOUR",
           "format": "table"
         }
       ]
@@ -168,7 +168,7 @@
         {
           "refId": "A",
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT count(*) AS value FROM agri_gold.ml_predictions WHERE needs_irrigation_today = 0 AND event_time >= now() - INTERVAL 24 HOUR",
+          "rawSql": "SELECT count(*) AS value FROM agri_gold.ml_predictions WHERE needs_irrigation_today = 0 AND prediction_time >= now() - INTERVAL 24 HOUR",
           "format": "table"
         }
       ]
@@ -231,7 +231,7 @@
         {
           "refId": "A",
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT farm_name AS metric, count(*) AS value FROM agri_gold.ml_predictions WHERE event_time >= now() - INTERVAL 24 HOUR GROUP BY farm_name ORDER BY value DESC",
+          "rawSql": "SELECT farm_name AS metric, count(*) AS value FROM agri_gold.ml_predictions WHERE prediction_time >= now() - INTERVAL 24 HOUR GROUP BY farm_name ORDER BY value DESC",
           "format": "table"
         }
       ]
@@ -287,7 +287,7 @@
         {
           "refId": "A",
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT toStartOfHour(event_time) AS time, avg(prediction_confidence) AS \"متوسط الثقة\" FROM agri_gold.ml_predictions WHERE event_time >= now() - INTERVAL 24 HOUR GROUP BY time ORDER BY time",
+          "rawSql": "SELECT toStartOfHour(prediction_time) AS time, avg(prediction_confidence) AS \"متوسط الثقة\" FROM agri_gold.ml_predictions WHERE prediction_time >= now() - INTERVAL 24 HOUR GROUP BY time ORDER BY time",
           "format": "time_series"
         }
       ]
@@ -338,7 +338,7 @@
         {
           "refId": "A",
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT farm_name AS \"المزرعة\", zone_name AS \"المنطقة\", prediction_confidence AS \"الثقة\", needs_irrigation_today AS \"الري_مطلوب\", recommended_irrigation_hours AS \"ساعات_الري\", soil_moisture AS \"رطوبة_التربة\", temperature AS \"الحرارة\", event_time AS \"prediction_time\" FROM agri_gold.ml_predictions ORDER BY event_time DESC LIMIT 20",
+          "rawSql": "SELECT farm_name AS \"المزرعة\", zone_name AS \"المنطقة\", prediction_confidence AS \"الثقة\", needs_irrigation_today AS \"الري_مطلوب\", model_version AS \"النموذج\", prediction_date AS \"التاريخ\", prediction_time AS \"الوقت\" FROM agri_gold.ml_predictions ORDER BY prediction_time DESC LIMIT 20",
           "format": "table"
         }
       ]

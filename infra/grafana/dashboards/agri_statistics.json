@@ -169,7 +169,7 @@
             "type": "grafana-clickhouse-datasource",
             "uid": "clickhouse"
           },
-          "rawSql": "SELECT sum(dry_readings) AS value FROM agri_gold.farm_summary_latest",
+          "rawSql": "SELECT count() AS value FROM agri_gold.zone_summary_history WHERE water_status = 'Dry' AND last_update >= now() - INTERVAL 24 HOUR",
           "queryType": "sql",
           "refId": "A",
           "format": "table"
@@ -242,7 +242,7 @@
             "type": "grafana-clickhouse-datasource",
             "uid": "clickhouse"
           },
-          "rawSql": "SELECT sum(healthy_readings) AS value FROM agri_gold.farm_summary_latest",
+          "rawSql": "SELECT count() AS value FROM agri_gold.zone_summary_history WHERE water_status = 'Optimal' AND last_update >= now() - INTERVAL 24 HOUR",
           "queryType": "sql",
           "refId": "A",
           "format": "table"
@@ -308,7 +308,7 @@
             "type": "grafana-clickhouse-datasource",
             "uid": "clickhouse"
           },
-          "rawSql": "SELECT avg(avg_air_humidity) AS value FROM agri_gold.farm_summary_latest WHERE lowerUTF8(farm_name) LIKE '%tihama%' OR farm_name LIKE '%تهامة%' OR lowerUTF8(farm_name) LIKE '%hudaydah%' OR farm_name LIKE '%الحديدة%'",
+          "rawSql": "SELECT avg(avg_air_humidity) AS value FROM agri_gold.zone_summary_history WHERE (lowerUTF8(farm_name) LIKE '%tihama%' OR farm_name LIKE '%تهامة%' OR lowerUTF8(farm_name) LIKE '%hudaydah%' OR farm_name LIKE '%الحديدة%') AND last_update >= now() - INTERVAL 24 HOUR",
           "queryType": "sql",
           "refId": "A",
           "format": "table"
@@ -387,7 +387,7 @@
             "type": "grafana-clickhouse-datasource",
             "uid": "clickhouse"
           },
-          "rawSql": "SELECT avg(avg_air_humidity) AS value FROM agri_gold.farm_summary_latest WHERE lowerUTF8(farm_name) LIKE '%jawf%' OR farm_name LIKE '%الجوف%'",
+          "rawSql": "SELECT avg(avg_air_humidity) AS value FROM agri_gold.zone_summary_history WHERE (lowerUTF8(farm_name) LIKE '%jawf%' OR farm_name LIKE '%الجوف%') AND last_update >= now() - INTERVAL 24 HOUR",
           "queryType": "sql",
           "refId": "A",
           "format": "table"
@@ -466,7 +466,7 @@
             "type": "grafana-clickhouse-datasource",
             "uid": "clickhouse"
           },
-          "rawSql": "SELECT avg(avg_air_temperature) AS value FROM agri_gold.farm_summary_latest WHERE lowerUTF8(farm_name) LIKE '%tihama%' OR farm_name LIKE '%تهامة%' OR lowerUTF8(farm_name) LIKE '%hudaydah%' OR farm_name LIKE '%الحديدة%'",
+          "rawSql": "SELECT avg(avg_air_temperature) AS value FROM agri_gold.zone_summary_history WHERE (lowerUTF8(farm_name) LIKE '%tihama%' OR farm_name LIKE '%تهامة%' OR lowerUTF8(farm_name) LIKE '%hudaydah%' OR farm_name LIKE '%الحديدة%') AND last_update >= now() - INTERVAL 24 HOUR",
           "queryType": "sql",
           "refId": "A",
           "format": "table"
@@ -543,7 +543,7 @@
             "type": "grafana-clickhouse-datasource",
             "uid": "clickhouse"
           },
-          "rawSql": "SELECT avg(avg_air_temperature) AS value FROM agri_gold.farm_summary_latest WHERE lowerUTF8(farm_name) LIKE '%jawf%' OR farm_name LIKE '%الجوف%'",
+          "rawSql": "SELECT avg(avg_air_temperature) AS value FROM agri_gold.zone_summary_history WHERE (lowerUTF8(farm_name) LIKE '%jawf%' OR farm_name LIKE '%الجوف%') AND last_update >= now() - INTERVAL 24 HOUR",
           "queryType": "sql",
           "refId": "A",
           "format": "table"
@@ -620,7 +620,7 @@
             "type": "grafana-clickhouse-datasource",
             "uid": "clickhouse"
           },
-          "rawSql": "SELECT avg(avg_soil_moisture) AS value FROM agri_gold.farm_summary_latest WHERE lowerUTF8(farm_name) LIKE '%tihama%' OR farm_name LIKE '%تهامة%' OR lowerUTF8(farm_name) LIKE '%hudaydah%' OR farm_name LIKE '%الحديدة%'",
+          "rawSql": "SELECT avg(avg_soil_moisture) AS value FROM agri_gold.zone_summary_history WHERE (lowerUTF8(farm_name) LIKE '%tihama%' OR farm_name LIKE '%تهامة%' OR lowerUTF8(farm_name) LIKE '%hudaydah%' OR farm_name LIKE '%الحديدة%') AND last_update >= now() - INTERVAL 24 HOUR",
           "queryType": "sql",
           "refId": "A",
           "format": "table"
@@ -695,7 +695,7 @@
             "type": "grafana-clickhouse-datasource",
             "uid": "clickhouse"
           },
-          "rawSql": "SELECT avg(avg_soil_moisture) AS value FROM agri_gold.farm_summary_latest WHERE lowerUTF8(farm_name) LIKE '%jawf%' OR farm_name LIKE '%الجوف%'",
+          "rawSql": "SELECT avg(avg_soil_moisture) AS value FROM agri_gold.zone_summary_history WHERE (lowerUTF8(farm_name) LIKE '%jawf%' OR farm_name LIKE '%الجوف%') AND last_update >= now() - INTERVAL 24 HOUR",
           "queryType": "sql",
           "refId": "A",
           "format": "table"
