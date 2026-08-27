@@ -6,12 +6,12 @@ import psycopg2
 import requests
 
 from common.logger import setup_logging, get_logger
+from common.session import create_spark
 from weather.weather_config import (
     BRONZE_WEATHER_PATH,
     OPENWEATHER_API_KEY,
     OPENWEATHER_BASE_URL,
     POSTGRES_CONFIG,
-    STORAGE_OPTIONS,
 )
 
 setup_logging()
@@ -104,7 +104,14 @@ def main():
         f"{BRONZE_WEATHER_PATH}/year={fetched_at.year}/month={fetched_at.month}/"
         f"day={fetched_at.day}/weather_{fetched_at.strftime('%Y%m%dT%H%M%S')}.parquet"
     )
-    df.to_parquet(output_path, storage_options=STORAGE_OPTIONS, index=False)
+
+    # Use PySpark (which has S3A configured) instead of pandas.to_parquet
+    # with s3fs — avoids the heavy aiobotocore dependency chain.
+    spark = create_spark("Weather Bronze - Fetch")
+    spark.sparkContext.setLogLevel("WARN")
+    spark_df = spark.createDataFrame(df)
+    spark_df.write.mode("append").parquet(output_path)
+    spark.stop()
 
     logger.info(
         "bronze_weather_written rows=%d failed_farms=%s path=%s",

@@ -9,12 +9,18 @@ if [ -z "$JOB_PATH" ]; then
     exit 1
 fi
 
+# Ensure Python dependencies required by batch jobs are available.
+# psycopg2: PostgreSQL access (weather bronze fetcher)
+python3 -c "import psycopg2" 2>/dev/null || pip install psycopg2-binary -q 2>&1 | tail -1
+
 APPS_DIR="/opt/spark/apps"
 JOB_DIR=$(dirname "${APPS_DIR}/${JOB_PATH}")
 JOB_UTILS_ZIP="/tmp/$(basename ${JOB_DIR})_utils.zip"
 
 COMMON_DIR="/opt/spark/apps/common"
-COMMON_ZIP="/tmp/common.zip"
+# Unique per-invocation: same fix as launch_stream_job.sh to avoid the
+# race where consecutive batch jobs overwrite a shared zip mid-submit.
+COMMON_ZIP="/tmp/common.$$.$(date +%s).zip"
 
 # Package common/ as --py-files so 'from common.X import ...' works inside spark-submit
 if [ -d "${COMMON_DIR}" ]; then

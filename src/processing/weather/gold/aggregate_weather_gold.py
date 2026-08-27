@@ -38,7 +38,7 @@ def main():
             spark_sum("rain_1h_mm").alias("total_rain"),
             avg("wind_speed").alias("avg_wind_speed"),
             avg("cloud_cover").alias("avg_clouds"),
-            first("weather_condition", ignoreNulls=True).alias("weather_condition"),
+            first("weather_condition").alias("weather_condition"),
             countDistinct("weather_reading_id").alias("observation_count"),
         )
         .withColumn("last_update", current_timestamp())
