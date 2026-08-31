@@ -1,17 +1,17 @@
-from common.logger import setup_logging, get_logger
-
+from common.ch_sync import atomic_replace
 from common.config import (
-    CLICKHOUSE_JDBC_URL,
     CLICKHOUSE_JDBC_DRIVER,
-    CLICKHOUSE_USER,
+    CLICKHOUSE_JDBC_URL,
     CLICKHOUSE_PASSWORD,
-    GOLD_ZONE_HISTORY_PATH,
-    GOLD_ZONE_LATEST_PATH,
+    CLICKHOUSE_USER,
+    GOLD_ALERTS_PATH,
     GOLD_FARM_HISTORY_PATH,
     GOLD_FARM_LATEST_PATH,
-    GOLD_ALERTS_PATH,
+    GOLD_ZONE_HISTORY_PATH,
+    GOLD_ZONE_LATEST_PATH,
     LAKEHOUSE_BUCKET,
 )
+from common.logger import get_logger, setup_logging
 from common.session import create_spark
 
 setup_logging()
@@ -25,19 +25,6 @@ def _jdbc_options():
         "user": CLICKHOUSE_USER,
         "password": CLICKHOUSE_PASSWORD,
     }
-
-
-def _truncate_table(spark, table_name):
-    jvm = spark.sparkContext._jvm
-    conn = jvm.java.sql.DriverManager.getConnection(
-        CLICKHOUSE_JDBC_URL, CLICKHOUSE_USER, CLICKHOUSE_PASSWORD,
-    )
-    try:
-        stmt = conn.createStatement()
-        stmt.execute(f"TRUNCATE TABLE {table_name}")
-        stmt.close()
-    finally:
-        conn.close()
 
 
 def _jdbc_append(batch_df, table_name):
@@ -55,8 +42,7 @@ def _jdbc_append(batch_df, table_name):
 
 
 def _jdbc_truncate_and_insert(spark, batch_df, table_name):
-    _truncate_table(spark, table_name)
-    _jdbc_append(batch_df, table_name)
+    atomic_replace(spark, batch_df, table_name, _jdbc_options())
 
 
 def write_zone_history(spark, batch_df, batch_id):
@@ -166,10 +152,15 @@ def main():
         raise
     finally:
         for query, label in queries:
-            logger.info(
-                "query_status label=%s active=%s last_progress=%s",
-                label, query.isActive, query.lastProgress,
-            )
+            try:
+                if query.isActive:
+                    query.stop()
+                logger.info(
+                    "query_stopped label=%s active=%s last_progress=%s",
+                    label, query.isActive, query.lastProgress,
+                )
+            except Exception:
+                logger.exception("query_stop_failed label=%s", label)
         spark.stop()
 
 

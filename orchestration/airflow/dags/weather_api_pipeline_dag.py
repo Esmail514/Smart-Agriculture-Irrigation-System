@@ -47,4 +47,10 @@ with DAG(
         op_kwargs={"job_path": "weather/gold/sync_weather_clickhouse.py"},
     )
 
-    fetch_bronze >> transform_silver >> aggregate_gold >> sync_clickhouse
+    sync_alerts = PythonOperator(
+        task_id="sync_weather_alerts_to_clickhouse",
+        python_callable=run_spark_batch_job,
+        op_kwargs={"job_path": "weather/gold/sync_weather_alerts_clickhouse.py"},
+    )
+
+    fetch_bronze >> transform_silver >> aggregate_gold >> sync_clickhouse >> sync_alerts

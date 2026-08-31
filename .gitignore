@@ -6,6 +6,10 @@
 .env
 *.env
 .env.*
+!.env.example
+
+# Local analysis/tool output files
+*_output.txt
 
 # Local volumes & runtime data
 volumes/

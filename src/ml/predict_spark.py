@@ -14,13 +14,14 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 
 from common.config import (
-    CLICKHOUSE_JDBC_URL,
     CLICKHOUSE_JDBC_DRIVER,
-    CLICKHOUSE_USER,
+    CLICKHOUSE_JDBC_URL,
     CLICKHOUSE_PASSWORD,
+    CLICKHOUSE_USER,
 )
-from common.logger import setup_logging, get_logger
+from common.logger import get_logger, setup_logging
 from common.session import create_spark
+from ml.feature_engineering import engineer_features
 
 setup_logging()
 logger = get_logger("ml_predictions")
@@ -68,49 +69,6 @@ def load_data(spark):
         weather_df = None
 
     return zone_df, weather_df
-
-
-def engineer_features(zone_pdf, weather_pdf=None):
-    df = zone_pdf.copy()
-    df["needs_irrigation"] = (df["water_status"] == "Dry").astype(int)
-
-    df["moisture_deficit"] = df["moisture_min"] - df["avg_soil_moisture"]
-    df["moisture_surplus"] = df["avg_soil_moisture"] - df["moisture_max"]
-
-    dt = pd.to_datetime(df["last_update"])
-    df["month"] = dt.dt.month
-    df["day_of_week"] = dt.dt.dayofweek
-    df["season"] = dt.dt.month.map({
-        12: 3, 1: 3, 2: 3, 3: 0, 4: 0, 5: 0,
-        6: 1, 7: 1, 8: 1, 9: 2, 10: 2, 11: 2,
-    })
-
-    if len(df) > 1:
-        df = df.sort_values(["zone_id", "last_update"])
-        df["moisture_rolling_mean_3"] = (
-            df.groupby("zone_id")["avg_soil_moisture"]
-            .transform(lambda x: x.rolling(3, min_periods=1).mean())
-        )
-        df["moisture_trend"] = df["avg_soil_moisture"] - df["moisture_rolling_mean_3"]
-    else:
-        df["moisture_rolling_mean_3"] = df["avg_soil_moisture"]
-        df["moisture_trend"] = 0.0
-
-    df["avg_temperature"] = df["avg_air_temperature"]
-    df["avg_humidity"] = df["avg_air_humidity"]
-    df["total_rain"] = 0.0
-    df["avg_wind_speed"] = 0.0
-
-    for col in [
-        "avg_soil_moisture", "avg_soil_temperature", "avg_air_temperature",
-        "avg_air_humidity", "avg_temperature", "avg_humidity",
-        "moisture_deficit", "moisture_surplus",
-        "moisture_rolling_mean_3", "moisture_trend",
-    ]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
-
-    return df
 
 
 def train_and_predict(df):
@@ -213,7 +171,11 @@ def main():
             logger.error("No zone data available for predictions")
             return
 
-        features = engineer_features(zone_pdf)
+        weather_pdf = weather_df.toPandas() if weather_df is not None else None
+        if weather_pdf is not None:
+            logger.info("Weather data: %d rows", len(weather_pdf))
+
+        features = engineer_features(zone_pdf, weather_pdf)
         predictions = train_and_predict(features)
         store_predictions(spark, predictions)
 

@@ -1,0 +1,832 @@
+{
+  "id": null,
+  "uid": "agri_overview",
+  "title": "لوحة التحكم الرئيسية — الري الذكي (Executive Overview)",
+  "description": "مركز التحكم والإشراف الشامل على منظومة الري الزراعي الذكي في اليمن",
+  "tags": [
+    "agriculture",
+    "overview",
+    "executive",
+    "yemen",
+    "irrigation"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "fiscalYearStartMonth": 0,
+  "liveNow": false,
+  "links": [
+    {
+      "icon": "dashboard",
+      "title": "🌐 نظرة عامة (Overview)",
+      "type": "link",
+      "url": "/d/agri_overview"
+    },
+    {
+      "icon": "dashboard",
+      "title": "🌱 تحليلات التربة (Soil)",
+      "type": "link",
+      "url": "/d/agri_soil_analytics"
+    },
+    {
+      "icon": "dashboard",
+      "title": "🌦️ الطقس والري (Weather)",
+      "type": "link",
+      "url": "/d/agri_weather_irrigation"
+    },
+    {
+      "icon": "dashboard",
+      "title": "🧠 توصيات ML (AI/ML)",
+      "type": "link",
+      "url": "/d/agri_ai_recommendations"
+    },
+    {
+      "icon": "dashboard",
+      "title": "⚡ البنية والعمليات (Platform)",
+      "type": "link",
+      "url": "/d/agri_platform_operations"
+    }
+  ],
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "row",
+      "id": 100,
+      "title": "📊 المؤشرات التنفيذية العامة (Executive Scorecard)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "المزارع النشطة",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2563EB",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT count() AS value FROM agri_gold.farm_summary_latest",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "المناطق الزراعية النشطة",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2563EB",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT count() AS value FROM agri_gold.zone_summary_latest",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "إجمالي المستشعرات المتصلة",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#16A34A",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT sum(sensors) AS value FROM agri_gold.farm_summary_latest",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "تنبيهات الري النشطة (24h)",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#16A34A",
+                "value": null
+              },
+              {
+                "color": "#F59E0B",
+                "value": 1
+              },
+              {
+                "color": "#DC2626",
+                "value": 10
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT count() AS value FROM agri_gold.irrigation_alerts WHERE event_time >= now() - INTERVAL 24 HOUR",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "المناطق في حالة مثالية %",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#DC2626",
+                "value": null
+              },
+              {
+                "color": "#F59E0B",
+                "value": 50
+              },
+              {
+                "color": "#16A34A",
+                "value": 75
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT round(countIf(water_status = 'Optimal') * 100.0 / count(), 1) AS value FROM agri_gold.zone_summary_latest",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "متوسط ثقة نماذج ML",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#DC2626",
+                "value": null
+              },
+              {
+                "color": "#F59E0B",
+                "value": 0.7
+              },
+              {
+                "color": "#16A34A",
+                "value": 0.85
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT avg(prediction_confidence) AS value FROM agri_gold.ml_predictions WHERE prediction_time >= now() - INTERVAL 24 HOUR",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 101,
+      "title": "🗺️ الخريطة الجغرافية وتوزيع المزارع (Geographic Distribution)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      }
+    },
+    {
+      "id": 10,
+      "type": "geomap",
+      "title": "مواقع المزارع والمناطق التابعة لها في اليمن",
+      "gridPos": {
+        "h": 11,
+        "w": 16,
+        "x": 0,
+        "y": 6
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "postgres"
+      },
+      "options": {
+        "view": {
+          "id": "ZoomI",
+          "zoom": 8,
+          "lat": 15.5,
+          "lng": 44.2,
+          "allLayers": true,
+          "showAttribution": true,
+          "showDebug": false,
+          "showMeasure": false,
+          "showScale": true,
+          "showZoom": true
+        },
+        "layers": [
+          {
+            "type": "markers",
+            "name": "المزارع",
+            "config": {
+              "style": {
+                "size": {
+                  "fixed": 20,
+                  "max": 35,
+                  "min": 12
+                },
+                "color": {
+                  "fixed": "#16A34A"
+                },
+                "fillOpacity": 0.9,
+                "lineWidth": 2,
+                "text": {
+                  "field": "farm_name",
+                  "mode": "field"
+                },
+                "textConfig": {
+                  "fontSize": 12,
+                  "textAlign": "center",
+                  "textBaseline": "bottom",
+                  "offsetY": -15
+                }
+              },
+              "showLegend": true
+            },
+            "location": {
+              "mode": "coords",
+              "longitude": "longitude",
+              "latitude": "latitude"
+            },
+            "tooltip": true
+          }
+        ],
+        "basemap": {
+          "type": "default",
+          "name": "default",
+          "config": {
+            "showLabels": true
+          }
+        },
+        "tooltip": {
+          "mode": "details"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#16A34A",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT farm_name, CAST(latitude AS FLOAT) AS latitude, CAST(longitude AS FLOAT) AS longitude, city AS \"المدينة\", district AS \"المديرية\", CAST(total_area_hectare AS FLOAT) AS \"المساحة_هكتار\" FROM farms ORDER BY farm_name",
+          "format": "table",
+          "editorMode": "raw"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "barchart",
+      "title": "متوسط رطوبة التربة عبر المزارع (%)",
+      "gridPos": {
+        "h": 11,
+        "w": 8,
+        "x": 16,
+        "y": 6
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "%",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "fillOpacity": 85,
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 40
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT farm_name AS \"المزرعة\", round(avg(avg_soil_moisture), 1) AS \"رطوبة_التربة_%\" FROM agri_gold.zone_summary_latest GROUP BY farm_name ORDER BY \"رطوبة_التربة_%\" ASC",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 102,
+      "title": "🏢 مصفوفة المزارع الميدانية (Farm Live Status Matrix)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      }
+    },
+    {
+      "id": 20,
+      "type": "table",
+      "title": "الحالة الشاملة لجميع المزارع — تحديث لحظي",
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "قراءات_جافة"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 10
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "قراءات_سليمة"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "المزرعة",
+            "desc": false
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT farm_name AS \"المزرعة\", sensors AS \"المستشعرات\", zones AS \"المناطق\", round(avg_soil_moisture, 1) AS \"متوسط_رطوبة_التربة_%\", round(avg_air_temperature, 1) AS \"متوسط_الحرارة_C\", round(avg_air_humidity, 1) AS \"متوسط_الرطوبة_%\", dry_readings AS \"قراءات_جافة\", healthy_readings AS \"قراءات_سليمة\", overwatered_readings AS \"قراءات_مفرطة\", last_update AS \"آخر_تحديث\" FROM agri_gold.farm_summary_latest ORDER BY farm_name",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 103,
+      "title": "🚨 آخر تنبيهات الري الميدانية (Active Alerts Feed)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      }
+    },
+    {
+      "id": 30,
+      "type": "table",
+      "title": "آخر 10 أحداث وتنبيهات ري حرجة",
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "حالة_الماء"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "Optimal": {
+                        "text": "مثالي ✅",
+                        "color": "green"
+                      },
+                      "Wet": {
+                        "text": "رطب 💧",
+                        "color": "blue"
+                      },
+                      "Dry": {
+                        "text": "جاف 🌵",
+                        "color": "orange"
+                      },
+                      "Critical": {
+                        "text": "حرج 🔴",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "وقت_الحدث",
+            "desc": true
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT farm_name AS \"المزرعة\", zone_name AS \"المنطقة الزراعية\", crop_name AS \"المحصول\", round(soil_moisture, 1) AS \"رطوبة_التربة_%\", water_status AS \"حالة_الماء\", round(recommended_water_mm, 1) AS \"الماء_الموصى_به_mm\", event_time AS \"وقت_الحدث\" FROM agri_gold.irrigation_alerts ORDER BY event_time DESC LIMIT 10",
+          "format": "table"
+        }
+      ]
+    }
+  ]
+}

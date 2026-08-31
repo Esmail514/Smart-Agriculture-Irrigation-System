@@ -3,10 +3,14 @@ from pyspark.sql.functions import (
     avg,
     col,
     countDistinct,
-    max as spark_max,
     row_number,
-    sum as spark_sum,
     when,
+)
+from pyspark.sql.functions import (
+    max as spark_max,
+)
+from pyspark.sql.functions import (
+    sum as spark_sum,
 )
 
 from common.transformations import compute_water_status
@@ -71,6 +75,9 @@ def create_irrigation_alerts(df):
 
 
 def upsert_latest(spark, new_summary_df, path, key_column, timestamp_column="last_update"):
+    if new_summary_df.rdd.isEmpty():
+        return
+
     try:
         existing_df = spark.read.parquet(path)
         combined_df = existing_df.unionByName(new_summary_df, allowMissingColumns=True)
@@ -86,9 +93,28 @@ def upsert_latest(spark, new_summary_df, path, key_column, timestamp_column="las
         .drop("_rn")
     )
 
-    (
-        deduped_df.write
-        .format("parquet")
-        .mode("overwrite")
-        .save(path)
-    )
+    # Stage the new snapshot out-of-band and swap directories with the Hadoop
+    # FS instead of overwriting the target in place.  A kill mid-swap leaves
+    # either the old snapshot or the new one on disk (never a partial file set),
+    # and the next cycle self-heals from whatever survived.
+    staging_path = f"{path}.staging"
+    backup_path = f"{path}.backup"
+
+    (deduped_df.write.format("parquet").mode("overwrite").save(staging_path))
+
+    jvm = spark.sparkContext._jvm
+    path_cls = jvm.org.apache.hadoop.fs.Path
+    conf = spark.sparkContext._jsc.hadoopConfiguration()
+    fs = jvm.org.apache.hadoop.fs.FileSystem.get(path_cls(path).toUri(), conf)
+
+    target_p = path_cls(path)
+    staging_p = path_cls(staging_path)
+    backup_p = path_cls(backup_path)
+
+    if fs.exists(backup_p):
+        fs.delete(backup_p, True)
+    if fs.exists(target_p):
+        fs.rename(target_p, backup_p)
+    fs.rename(staging_p, target_p)
+    if fs.exists(backup_p):
+        fs.delete(backup_p, True)

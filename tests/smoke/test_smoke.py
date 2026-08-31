@@ -25,10 +25,10 @@ def test_common_modules_import():
 
 def test_config_values_load():
     """Config values must load from environment (or defaults) without throwing."""
-    from src.common.config.kafka import KAFKA_BOOTSTRAP_SERVERS, SENSOR_TOPIC
-    from src.common.config.minio import MINIO_ENDPOINT, LAKEHOUSE_BUCKET
-    from src.common.config.postgres import POSTGRES_HOST, POSTGRES_DB
-    from src.common.config.clickhouse import CLICKHOUSE_HOST, CLICKHOUSE_DATABASE
+    from src.common.config.clickhouse import CLICKHOUSE_HOST
+    from src.common.config.kafka import KAFKA_BOOTSTRAP_SERVERS
+    from src.common.config.minio import LAKEHOUSE_BUCKET, MINIO_ENDPOINT
+    from src.common.config.postgres import POSTGRES_HOST
 
     assert KAFKA_BOOTSTRAP_SERVERS, "KAFKA_BOOTSTRAP_SERVERS must be set"
     assert MINIO_ENDPOINT, "MINIO_ENDPOINT must be set"
@@ -49,15 +49,21 @@ def test_logger_factory():
 
 def test_processing_modules_import():
     """Processing modules must exist (file-level, no PySpark runtime needed)."""
-    import ast, os
+    import ast
 
     jobs = [
         os.path.join("src", "processing", "bronze", "bronze_streaming.py"),
         os.path.join("src", "processing", "silver", "silver_streaming.py"),
         os.path.join("src", "processing", "gold", "gold_streaming.py"),
+        os.path.join("src", "processing", "gold", "gold_to_clickhouse.py"),
         os.path.join("src", "processing", "weather", "bronze", "fetch_weather_bronze.py"),
         os.path.join("src", "processing", "weather", "silver", "transform_weather_silver.py"),
         os.path.join("src", "processing", "weather", "gold", "aggregate_weather_gold.py"),
+        os.path.join("src", "processing", "weather", "gold", "sync_weather_clickhouse.py"),
+        os.path.join("src", "processing", "weather", "gold", "sync_weather_alerts_clickhouse.py"),
+        os.path.join("src", "ml", "predict_spark.py"),
+        os.path.join("src", "ml", "feature_engineering.py"),
+        os.path.join("src", "common", "ch_sync.py"),
     ]
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     for job in jobs:

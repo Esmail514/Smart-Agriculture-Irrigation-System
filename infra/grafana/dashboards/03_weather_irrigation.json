@@ -1,0 +1,648 @@
+{
+  "id": null,
+  "uid": "agri_weather_irrigation",
+  "title": "الطقس وقرارات الري الذكي (Weather & Smart Irrigation)",
+  "description": "تحليل الأرصاد الجوية، الأمطار المتوقعة، والقرارات التلقائية لجدولة وتأجيل الري",
+  "tags": [
+    "agriculture",
+    "weather",
+    "irrigation",
+    "rain",
+    "yemen"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "fiscalYearStartMonth": 0,
+  "liveNow": false,
+  "links": [
+    {
+      "icon": "dashboard",
+      "title": "🌐 نظرة عامة (Overview)",
+      "type": "link",
+      "url": "/d/agri_overview"
+    },
+    {
+      "icon": "dashboard",
+      "title": "🌱 تحليلات التربة (Soil)",
+      "type": "link",
+      "url": "/d/agri_soil_analytics"
+    },
+    {
+      "icon": "dashboard",
+      "title": "🌦️ الطقس والري (Weather)",
+      "type": "link",
+      "url": "/d/agri_weather_irrigation"
+    },
+    {
+      "icon": "dashboard",
+      "title": "🧠 توصيات ML (AI/ML)",
+      "type": "link",
+      "url": "/d/agri_ai_recommendations"
+    },
+    {
+      "icon": "dashboard",
+      "title": "⚡ البنية والعمليات (Platform)",
+      "type": "link",
+      "url": "/d/agri_platform_operations"
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT farm_name FROM agri_gold.farm_weather_daily ORDER BY farm_name",
+        "hide": 0,
+        "includeAll": true,
+        "allValue": "%",
+        "label": "المزرعة",
+        "multi": false,
+        "name": "farm_name",
+        "options": [],
+        "query": "SELECT DISTINCT farm_name FROM agri_gold.farm_weather_daily ORDER BY farm_name",
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "id": 100,
+      "title": "🌦️ مؤشرات الطقس والأمطار (Weather KPIs)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "متوسط درجة الحرارة اليومية",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 20
+              },
+              {
+                "color": "red",
+                "value": 38
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT round(avg(avg_temperature), 1) AS value FROM agri_gold.farm_weather_daily WHERE farm_name LIKE '$farm_name'",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "إجمالي الأمطار المسجلة (mm)",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthmm",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#F59E0B",
+                "value": null
+              },
+              {
+                "color": "#16A34A",
+                "value": 5
+              },
+              {
+                "color": "#2563EB",
+                "value": 20
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT round(sum(total_rain), 1) AS value FROM agri_gold.farm_weather_daily WHERE farm_name LIKE '$farm_name'",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "متوسط سرعة الرياح",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "velocitykmh",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 25
+              },
+              {
+                "color": "red",
+                "value": 45
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT round(avg(avg_wind_speed), 1) AS value FROM agri_gold.farm_weather_daily WHERE farm_name LIKE '$farm_name'",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "متوسط الغطاء السحابي %",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT round(avg(avg_clouds), 0) AS value FROM agri_gold.farm_weather_daily WHERE farm_name LIKE '$farm_name'",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "تنبيهات الري المرتبطة بالطقس",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT count() AS value FROM agri_gold.weather_irrigation_alerts WHERE farm_name LIKE '$farm_name'",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "قرارات تأجيل الري بسبب المطر",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT count() AS value FROM agri_gold.weather_irrigation_alerts WHERE irrigation_decision LIKE '%Postpone%' OR irrigation_decision LIKE '%Rain%' OR irrigation_decision LIKE '%تأجيل%'",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 101,
+      "title": "📅 سجل الأرصاد اليومية (Daily Weather Log)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      }
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "سجل الطقس اليومي لجميع المزارع",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "الأمطار_mm"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "gray",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 1
+                    },
+                    {
+                      "color": "blue",
+                      "value": 10
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "التاريخ",
+            "desc": true
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT farm_name AS \"المزرعة\", weather_date AS \"التاريخ\", round(avg_temperature, 1) AS \"الحرارة_C\", round(avg_humidity, 1) AS \"الرطوبة_%\", round(total_rain, 1) AS \"الأمطار_mm\", round(avg_wind_speed, 1) AS \"الرياح_km_h\", round(avg_clouds, 0) AS \"الغيوم_%\", weather_condition AS \"حالة_الطقس\", last_update AS \"آخر_تحديث\" FROM agri_gold.farm_weather_daily WHERE farm_name LIKE '$farm_name' ORDER BY weather_date DESC, farm_name",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 102,
+      "title": "💧 قرارات الري المرتبطة بالأرصاد (Smart Weather Irrigation Decisions)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      }
+    },
+    {
+      "id": 20,
+      "type": "table",
+      "title": "سجل قرارات الري الذكية وفقاً لحالة الطقس والتوقعات",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "قرار_الري"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "null",
+                      "result": {
+                        "text": "طبيعي"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "Irrigate": {
+                        "text": "ري مطلوب 💧",
+                        "color": "red"
+                      },
+                      "Postpone": {
+                        "text": "تأجيل الري بسبب المطر 🌧️",
+                        "color": "blue"
+                      },
+                      "Optimal": {
+                        "text": "مثالي ✅",
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "وقت_المعالجة",
+            "desc": true
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT farm_name AS \"المزرعة\", zone_name AS \"المنطقة\", crop_name AS \"المحصول\", round(soil_moisture, 1) AS \"رطوبة_التربة_%\", round(expected_rain, 1) AS \"المطر_المتوقع_mm\", round(recommended_water_mm, 1) AS \"الماء_الموصى_mm\", irrigation_decision AS \"قرار_الري\", weather_condition AS \"الطقس\", processing_time AS \"وقت_المعالجة\" FROM agri_gold.weather_irrigation_alerts WHERE farm_name LIKE '$farm_name' ORDER BY processing_time DESC LIMIT 50",
+          "format": "table"
+        }
+      ]
+    }
+  ]
+}

@@ -94,7 +94,7 @@ class DataGenerator:
         self.state[sensor_id] = dict(reading)
         return reading
 
-    def _inject_anomaly(self, reading, sensor_id):
+    def _inject_anomaly(self, reading, sensor_id, previous=None):
 
         anomaly_type = random.choices(
             population=list(ANOMALY_TYPE_WEIGHTS.keys()),
@@ -122,7 +122,7 @@ class DataGenerator:
             )
 
         elif anomaly_type == "frozen_reading":
-            previous = self.state.get(sensor_id)
+            previous = previous or self.state.get(sensor_id)
             if previous:
                 reading["soil_moisture"] = previous["soil_moisture"]
                 reading["soil_temperature"] = previous["soil_temperature"]
@@ -138,9 +138,11 @@ class DataGenerator:
 
     def generate(self, sensor):
         utc_now = datetime.now(timezone.utc)
+        sensor_id = sensor["sensor_id"]
+        previous = self.state.get(sensor_id)
         reading = self._generate_clean_reading(sensor, utc_now)
 
         if random.random() < ANOMALY_RATE:
-            reading = self._inject_anomaly(reading, sensor["sensor_id"])
+            reading = self._inject_anomaly(reading, sensor_id, previous)
 
         return reading

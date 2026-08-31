@@ -39,15 +39,17 @@ datasources:
       password: "${CLICKHOUSE_PASSWORD}"
 
   # --- PostgreSQL (Crop / Field Reference Data) ---
+  # Realigned to the actual project DB (created by ${POSTGRES_DB} in
+  # docker-compose).  Previously it pointed at a database/user that do not exist.
   - name: PostgreSQL
     type: postgres
     uid: postgres
     access: proxy
     url: postgres:5432
-    user: agri_user
+    user: ${POSTGRES_USER}
     editable: false
     jsonData:
-      database: agri_meta
+      database: ${POSTGRES_DB}
       sslmode: disable
       postgresVersion: 1400
       timescaledb: false
