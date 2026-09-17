@@ -1,0 +1,20 @@
+[flake8]
+# Matches the project's established lint policy (was inline in CI):
+# lines up to 120 chars are tolerated; E501/W503 explicitly ignored.
+max-line-length = 120
+extend-ignore = E501, W503
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    build,
+    dist,
+    src/ml/models,
+    src/ml/datasets
+# E402: these modules intentionally adjust sys.path before importing
+# project packages (standard pattern for script-style entry points).
+per-file-ignores =
+    tests/unit/test_generator_anomalies.py: E402
+    src/ingestion/sensor_simulator/config.py: E402
+    orchestration/airflow/dags/*.py: E402
