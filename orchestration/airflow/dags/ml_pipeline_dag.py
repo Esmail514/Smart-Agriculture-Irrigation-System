@@ -10,6 +10,7 @@ default_args = {
     "owner": "smart_agriculture",
     "retries": 2,
     "retry_delay": timedelta(minutes=2),
+    "execution_timeout": timedelta(minutes=25),
 }
 
 

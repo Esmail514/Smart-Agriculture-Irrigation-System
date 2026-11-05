@@ -3,7 +3,6 @@ from datetime import timedelta
 import pendulum
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from airflow.sensors.external_task import ExternalTaskSensor
 
 from utils.launch_spark_stream import launch_stream_job  # noqa: E402
 
@@ -32,32 +31,35 @@ def _start_all_streaming(**context):
 def _check_streaming_health(**context):
     import docker
 
-    client = docker.from_env()
-    container = client.containers.get("agri-spark-master")
+    client = docker.from_env(timeout=30)
+    try:
+        container = client.containers.get("agri-spark-master")
 
-    for job in STREAMING_JOBS:
-        script_name = job.split("/")[-1]
-        log_path = f"/opt/spark/apps/logs/{job.replace('.py', '')}.log"
-        # Bracket-escape the first char so pgrep cannot match the *invoking*
-        # shell itself (its cmdline contains the pattern text), which made
-        # this check always pass even when the job had crashed.
-        pgrep_pattern = f"[{script_name[0]}]{script_name[1:]}"
-        result = container.exec_run(
-            cmd=["bash", "-c", f"pgrep -f '{pgrep_pattern}'"],
-        )
-        if result.exit_code != 0:
-            raise RuntimeError(
-                f"Streaming job {job} is NOT running (exit_code={result.exit_code}). "
-                "Restarting..."
+        for job in STREAMING_JOBS:
+            script_name = job.split("/")[-1]
+            log_path = f"/opt/spark/apps/logs/{job.replace('.py', '')}.log"
+            # Bracket-escape the first char so pgrep cannot match the *invoking*
+            # shell itself (its cmdline contains the pattern text), which made
+            # this check always pass even when the job had crashed.
+            pgrep_pattern = f"[{script_name[0]}]{script_name[1:]}"
+            result = container.exec_run(
+                cmd=["bash", "-c", f"pgrep -f '{pgrep_pattern}'"],
             )
-        exit_code, output = container.exec_run(
-            cmd=["bash", "-c", f"tail -1 {log_path} 2>/dev/null || true"],
-        )
-        output_text = output.decode(errors="replace") if output else ""
-        if "fatal" in output_text.lower():
-            raise RuntimeError(
-                f"Streaming job {job} log shows error:\n{output_text}"
+            if result.exit_code != 0:
+                raise RuntimeError(
+                    f"Streaming job {job} is NOT running (exit_code={result.exit_code}). "
+                    "The next DAG run will relaunch missing jobs."
+                )
+            exit_code, output = container.exec_run(
+                cmd=["bash", "-c", f"tail -1 {log_path} 2>/dev/null || true"],
             )
+            output_text = output.decode(errors="replace") if output else ""
+            if "fatal" in output_text.lower():
+                raise RuntimeError(
+                    f"Streaming job {job} log shows error:\n{output_text}"
+                )
+    finally:
+        client.close()
 
 
 with DAG(

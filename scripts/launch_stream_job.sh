@@ -2,13 +2,22 @@
 # Runs inside the agri-spark-master container via docker exec from Airflow.
 # Prevents launching a second instance of the same job if it is already running.
 
-set -e
+set -euo pipefail
 
-JOB_FILENAME="$1"
+JOB_FILENAME="${1:-}"
 if [ -z "$JOB_FILENAME" ]; then
     echo "Usage: launch_stream_job.sh <job_filename.py>"
     exit 1
 fi
+
+case "$JOB_FILENAME" in
+    bronze/bronze_streaming.py|silver/silver_streaming.py|gold/gold_streaming.py|gold/gold_to_clickhouse.py) ;;
+    *) echo "Unsupported streaming job: $JOB_FILENAME" >&2; exit 2 ;;
+esac
+# Keep the duplicate-process check and launch in one critical section.
+LOCK_NAME="${JOB_FILENAME//\//_}"
+exec 9>"/tmp/agri-stream-${LOCK_NAME}.lock"
+flock -x 9
 
 SCRIPT_NAME=$(basename "${JOB_FILENAME}")
 # Bracket-escape first char + exclude this shell ($$) and its parent ($PPID):
@@ -73,12 +82,12 @@ mkdir -p "$(dirname "${LOG_FILE}")"
 # nohup + & → fire-and-forget for streaming jobs (run indefinitely)
 # spark.cores.max=1: each app gets exactly 1 executor (1 core, 512m heap)
 # so all 4 streaming apps share the 4-core worker concurrently.
-PYTHONPATH="/opt/spark/apps:${PYTHONPATH}" nohup spark-submit \
+PYTHONPATH="/opt/spark/apps:${PYTHONPATH:-}" nohup spark-submit \
     --master spark://spark-master:7077 \
     --deploy-mode client \
     --conf spark.cores.max=1 \
     ${PY_FILES_ARG} \
-    "${APPS_DIR}/${JOB_FILENAME}" >> "${LOG_FILE}" 2>&1 &
+    "${APPS_DIR}/${JOB_FILENAME}" >> "${LOG_FILE}" 2>&1 9>&- &
 
 DRIVER_PID=$!
 sleep 3

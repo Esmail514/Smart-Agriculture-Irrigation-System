@@ -1,7 +1,7 @@
 from common.logger import setup_logging, get_logger
 
-from common.session import create_spark
-from common.schemas import bronze_schema
+from common.session import create_spark, ensure_stream_paths
+from common.schemas import bronze_schema, silver_schema
 from common.rules import load_irrigation_rules
 from common.transformations import (
     split_valid_and_rejected,
@@ -28,6 +28,7 @@ def main():
     spark.sparkContext.setLogLevel("WARN")
 
     rules_df = load_irrigation_rules(spark)
+    ensure_stream_paths(spark, BRONZE_SENSOR_PATH)
 
     bronze_df = (
         spark.readStream
@@ -46,6 +47,7 @@ def main():
 
     silver_df = add_processing_time(silver_df)
     silver_df = add_water_status(silver_df)
+    silver_df = silver_df.select(*silver_schema.fieldNames())
 
     silver_query = (
         silver_df.writeStream
@@ -53,7 +55,7 @@ def main():
         .outputMode("append")
         .option("path", SILVER_SENSOR_PATH)
         .option("checkpointLocation", CHECKPOINT_SILVER_SENSOR)
-        .partitionBy("year", "month", "crop_name")
+        .partitionBy("year", "month", "day")
         .trigger(processingTime=STREAM_TRIGGER_INTERVAL)
         .start()
     )

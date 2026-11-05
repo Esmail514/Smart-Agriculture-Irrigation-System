@@ -1,87 +1,38 @@
-#!/bin/bash
-# Runs synchronous PySpark batch jobs (spark-submit exits on its own since
-# these are not streaming queries). Unlike launch_stream_job.sh which is for
-# perpetually running streaming jobs.
-
-JOB_PATH="$1"   # Relative path inside /opt/spark/apps, e.g. weather/silver/transform_weather_silver.py
-if [ -z "$JOB_PATH" ]; then
-    echo "Usage: run_spark_batch_job.sh <relative/path/to/file.py>"
-    exit 1
+#!/usr/bin/env bash
+# Finite batch jobs run in the master container; streaming owns worker slots.
+set -euo pipefail
+JOB_PATH="${1:-}"
+APPS_DIR="${SPARK_APPS_DIR:-/opt/spark/apps}"
+case "$JOB_PATH" in
+    weather/bronze/fetch_weather_bronze.py|weather/silver/transform_weather_silver.py|weather/gold/aggregate_weather_gold.py|weather/gold/sync_weather_clickhouse.py|weather/gold/sync_weather_alerts_clickhouse.py|ml/predict_spark.py) ;;
+    *) echo "Unsupported batch job: $JOB_PATH" >&2; exit 2 ;;
+esac
+if [[ ! -f "$APPS_DIR/$JOB_PATH" || ! -d "$APPS_DIR/common" ]]; then
+    echo "Missing batch job or common package" >&2
+    exit 2
 fi
-
-# Ensure Python dependencies required by batch jobs are available.
-# psycopg2: PostgreSQL access (weather bronze fetcher)
-python3 -c "import psycopg2" 2>/dev/null || pip install psycopg2-binary -q 2>&1 | tail -1
-
-APPS_DIR="/opt/spark/apps"
-JOB_DIR=$(dirname "${APPS_DIR}/${JOB_PATH}")
-JOB_UTILS_ZIP="/tmp/$(basename ${JOB_DIR})_utils.zip"
-
-COMMON_DIR="/opt/spark/apps/common"
-# Unique per-invocation: same fix as launch_stream_job.sh to avoid the
-# race where consecutive batch jobs overwrite a shared zip mid-submit.
-COMMON_ZIP="/tmp/common.$$.$(date +%s).zip"
-
-# Package common/ as --py-files so 'from common.X import ...' works inside spark-submit
-if [ -d "${COMMON_DIR}" ]; then
-    rm -f "${COMMON_ZIP}"
-    python3 -c "
-import zipfile
+# Dependencies are installed and verified when the image is built.
+COMMON_ZIP=$(mktemp /tmp/agri-batch-common.XXXXXXXX.zip)
+trap 'rm -f "$COMMON_ZIP"' EXIT
+python3 - "$APPS_DIR/common" "$COMMON_ZIP" <<'PY'
 import os
-
-common_dir = '${COMMON_DIR}'
-zip_path = '${COMMON_ZIP}'
-package_name = os.path.basename(common_dir.rstrip('/'))
-
-with zipfile.ZipFile(zip_path, 'w') as zf:
-    for root, dirs, files in os.walk(common_dir):
-        for f in files:
-            if not f.endswith('.py'):
-                continue
-            full = os.path.join(root, f)
-            rel = os.path.relpath(full, common_dir)
-            arcname = os.path.join(package_name, rel)
-            zf.write(full, arcname)
-"
-    PY_FILES_ARG="${COMMON_ZIP}"
-else
-    PY_FILES_ARG=""
-fi
-
-# Also zip any .py files in the same directory as the job (e.g. weather_config.py)
-rm -f "${JOB_UTILS_ZIP}"
-python3 -c "
+import sys
 import zipfile
-import os
-
-job_dir = '${JOB_DIR}'
-zip_path = '${JOB_UTILS_ZIP}'
-
-with zipfile.ZipFile(zip_path, 'w') as zf:
-    for f in os.listdir(job_dir):
-        if f.endswith('.py'):
-            zf.write(os.path.join(job_dir, f), f)
-"
-
-if [ -n "${PY_FILES_ARG}" ]; then
-    PY_FILES_COMBINED="${PY_FILES_ARG},${JOB_UTILS_ZIP}"
-else
-    PY_FILES_COMBINED="${JOB_UTILS_ZIP}"
-fi
-
-LOG_FILE="${APPS_DIR}/logs/$(basename ${JOB_PATH%.py}).log"
-mkdir -p "$(dirname "${LOG_FILE}")"
-
-# Synchronous (no nohup/&): exit code of this script = actual job exit code.
-# This lets Airflow know if the job truly succeeded or failed, and lets the
-# task chain (bronze >> silver >> gold) wait for each step to finish.
-PYTHONPATH="/opt/spark/apps:${PYTHONPATH}" spark-submit \
-    --master spark://spark-master:7077 \
+with zipfile.ZipFile(sys.argv[2], 'w') as archive:
+    for root, dirs, files in os.walk(sys.argv[1]):
+        dirs[:] = [name for name in dirs if name != '__pycache__']
+        for name in files:
+            if name.endswith('.py'):
+                full = os.path.join(root, name)
+                archive.write(full, 'common/' + os.path.relpath(full, sys.argv[1]))
+PY
+LOG_FILE="$APPS_DIR/logs/${JOB_PATH%.py}.log"
+mkdir -p "$(dirname "$LOG_FILE")"
+# local[1] avoids waiting forever behind four never-ending streaming apps.
+# pipefail propagates both Spark failures and log write failures to Airflow.
+PYTHONPATH="$APPS_DIR:${PYTHONPATH:-}" spark-submit \
+    --master 'local[1]' \
     --deploy-mode client \
-    --py-files "${PY_FILES_COMBINED}" \
-    "${APPS_DIR}/${JOB_PATH}" \
-    2>&1 | tee "${LOG_FILE}"
-
-# PIPESTATUS[0] is critical — without it the pipe exit code reflects tee
-# (always succeeds), not the actual spark-submit result.
-exit ${PIPESTATUS[0]}
+    --conf spark.cores.max=1 \
+    --py-files "$COMMON_ZIP" \
+    "$APPS_DIR/$JOB_PATH" 2>&1 | tee "$LOG_FILE"

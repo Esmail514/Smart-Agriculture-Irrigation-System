@@ -6,7 +6,6 @@
 #
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File scripts\stop-pipeline.ps1
-#   powershell ... -RemoveVolumes    # also delete persistent volumes
 # ============================================================
 
 param(
@@ -26,7 +25,8 @@ Write-Line "================ Smart Agriculture - Pipeline Tear Down ============
 # 1) Stop host-side sensor simulator (python running simulator.py)
 Write-Line "Stopping host sensor simulator process(es)..."
 $simProcs = Get-CimInstance Win32_Process -Filter "Name = 'python.exe' OR Name = 'python3.exe'" -ErrorAction SilentlyContinue |
-    Where-Object { $_.CommandLine -like "*sensor_simulator*simulator.py*" }
+    Where-Object { $_.CommandLine -like "*sensor_simulator*simulator.py*" -and
+        $_.CommandLine.IndexOf($script:Root, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 }
 if ($simProcs) {
     foreach ($p in $simProcs) {
         Write-Line "  Killing PID $($p.ProcessId): $($p.CommandLine)" "Yellow"
@@ -39,9 +39,10 @@ if ($simProcs) {
 # 2) Docker compose down
 if (Test-Path -LiteralPath $script:ComposeFile) {
     Write-Line "Stopping containers (persistent volumes are always preserved)..."
-    docker compose -f $script:ComposeFile stop
+    docker compose --project-directory $script:Root -f $script:ComposeFile --profile monitoring --profile tools --profile simulation stop
     if ($LASTEXITCODE -ne 0) {
         Write-Line "  'docker compose stop' failed (exit=$LASTEXITCODE)." "Red"
+        exit 1
     } else {
         Write-Line "Containers stopped successfully. All data volumes preserved." "Green"
     }

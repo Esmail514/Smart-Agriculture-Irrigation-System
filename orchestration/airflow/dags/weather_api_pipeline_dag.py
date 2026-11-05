@@ -4,12 +4,13 @@ import pendulum
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
-from utils.launch_spark_stream import launch_stream_job, run_spark_batch_job  # noqa: E402
+from utils.launch_spark_stream import run_spark_batch_job  # noqa: E402
 
 default_args = {
     "owner": "smart_agriculture",
     "retries": 2,
     "retry_delay": timedelta(minutes=2),
+    "execution_timeout": timedelta(minutes=25),
 }
 
 with DAG(

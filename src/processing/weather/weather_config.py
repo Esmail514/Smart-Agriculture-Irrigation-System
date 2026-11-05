@@ -9,16 +9,16 @@ from common.config.weather import OPENWEATHER_API_KEY, OPENWEATHER_BASE_URL
 from common.session import create_spark
 
 
-BRONZE_WEATHER_PATH = f"s3a://{LAKEHOUSE_BUCKET}/bronze/weather_data"
-SILVER_WEATHER_PATH = f"s3a://{LAKEHOUSE_BUCKET}/silver/weather_data"
-SILVER_WEATHER_REJECTED_PATH = f"s3a://{LAKEHOUSE_BUCKET}/silver/weather_data_rejected"
-GOLD_WEATHER_DAILY_PATH = f"s3a://{LAKEHOUSE_BUCKET}/gold/farm_weather_daily"
-GOLD_WEATHER_ALERTS_PATH = f"s3a://{LAKEHOUSE_BUCKET}/gold/weather_irrigation_alerts"
+BRONZE_WEATHER_PATH = f"s3a://{LAKEHOUSE_BUCKET}/bronze/weather_v2"
+SILVER_WEATHER_PATH = f"s3a://{LAKEHOUSE_BUCKET}/silver/weather_v2"
+SILVER_WEATHER_REJECTED_PATH = f"s3a://{LAKEHOUSE_BUCKET}/quarantine/weather"
+GOLD_WEATHER_DAILY_PATH = f"s3a://{LAKEHOUSE_BUCKET}/gold/weather_v2/farm_weather_daily"
+GOLD_WEATHER_ALERTS_PATH = f"s3a://{LAKEHOUSE_BUCKET}/gold/weather_v2/weather_irrigation_alerts"
 
-CHECKPOINT_WEATHER_BRONZE = f"s3a://{LAKEHOUSE_BUCKET}/checkpoints/weather_bronze"
-CHECKPOINT_WEATHER_SILVER = f"s3a://{LAKEHOUSE_BUCKET}/checkpoints/weather_silver"
-CHECKPOINT_WEATHER_GOLD_DAILY = f"s3a://{LAKEHOUSE_BUCKET}/checkpoints/weather_gold_daily"
-CHECKPOINT_WEATHER_GOLD_ALERTS = f"s3a://{LAKEHOUSE_BUCKET}/checkpoints/weather_gold_alerts"
+CHECKPOINT_WEATHER_BRONZE = f"s3a://{LAKEHOUSE_BUCKET}/checkpoints/weather_v2/bronze"
+CHECKPOINT_WEATHER_SILVER = f"s3a://{LAKEHOUSE_BUCKET}/checkpoints/weather_v2/silver"
+CHECKPOINT_WEATHER_GOLD_DAILY = f"s3a://{LAKEHOUSE_BUCKET}/checkpoints/weather_v2/gold_daily"
+CHECKPOINT_WEATHER_GOLD_ALERTS = f"s3a://{LAKEHOUSE_BUCKET}/checkpoints/weather_v2/gold_alerts"
 
 STORAGE_OPTIONS = {
     "key": MINIO_ACCESS_KEY,

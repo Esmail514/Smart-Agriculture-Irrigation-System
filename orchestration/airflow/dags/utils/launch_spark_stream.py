@@ -1,61 +1,32 @@
+"""Submit bounded job paths; failures must fail the Airflow task."""
 import logging
 
-import docker
+from utils.docker_exec import docker_exec
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
-)
-logger = logging.getLogger("launch_spark_stream")
-
+logger = logging.getLogger(__name__)
 SPARK_MASTER_CONTAINER = "agri-spark-master"
+STREAM_JOBS = frozenset({"bronze/bronze_streaming.py", "silver/silver_streaming.py",
+                         "gold/gold_streaming.py", "gold/gold_to_clickhouse.py"})
+BATCH_JOBS = frozenset({"weather/bronze/fetch_weather_bronze.py", "weather/silver/transform_weather_silver.py",
+                       "weather/gold/aggregate_weather_gold.py", "weather/gold/sync_weather_clickhouse.py",
+                       "weather/gold/sync_weather_alerts_clickhouse.py", "ml/predict_spark.py"})
 
 
 def launch_stream_job(job_filename, **context):
-    """
-    يُستدعى من PythonOperator بكل DAG من الثلاثة (bronze/silver/gold).
-    يحتاج /var/run/docker.sock مركّب داخل حاوية airflow-worker.
-    """
-    client = docker.from_env()
-    container = client.containers.get(SPARK_MASTER_CONTAINER)
-
-    exit_code, output = container.exec_run(
-        cmd=["bash", "/opt/spark/scripts/launch_stream_job.sh", job_filename],
-    )
-    output_text = output.decode() if output else ""
-    logger.info("launch_result job=%s exit_code=%s\n%s", job_filename, exit_code, output_text)
-
-    if exit_code != 0:
-        raise RuntimeError(
-            f"فشل إطلاق {job_filename} - exit_code={exit_code}\n{output_text}"
-        )
+    if job_filename not in STREAM_JOBS:
+        raise ValueError("Unsupported streaming job")
+    output = docker_exec(SPARK_MASTER_CONTAINER,
+                         ["bash", "/opt/spark/scripts/launch_stream_job.sh", job_filename], timeout=120)
+    logger.info("stream_launch job=%s result=%s", job_filename, output[-4000:])
 
 
 def run_batch_job(job_filename, **context):
-    """
-    For synchronous batch jobs that are NOT Spark-based (e.g. Python scripts
-    that don't use spark-submit). Uses run_spark_batch_job.sh which handles
-    --py-files packaging automatically.
-    """
     return run_spark_batch_job(job_filename, **context)
 
 
 def run_spark_batch_job(job_path, **context):
-    """
-    لـ PySpark batch jobs (Silver/Gold الطقس مثلاً) - عبر run_spark_batch_job.sh
-    المتزامن (spark-submit + --py-files، بدون nohup/خلفية). exec_run هنا
-    ينتظر فعلياً حتى ينتهي spark-submit قبل ما يرجّع النتيجة.
-    """
-    client = docker.from_env()
-    container = client.containers.get(SPARK_MASTER_CONTAINER)
-
-    exit_code, output = container.exec_run(
-        cmd=["bash", "/opt/spark/scripts/run_spark_batch_job.sh", job_path],
-    )
-    output_text = output.decode() if output else ""
-    logger.info("spark_batch_result job=%s exit_code=%s\n%s", job_path, exit_code, output_text)
-
-    if exit_code != 0:
-        raise RuntimeError(
-            f"فشل تشغيل {job_path} - exit_code={exit_code}\n{output_text}"
-        )
+    if job_path not in BATCH_JOBS:
+        raise ValueError("Unsupported batch job")
+    output = docker_exec(SPARK_MASTER_CONTAINER,
+                         ["bash", "/opt/spark/scripts/run_spark_batch_job.sh", job_path], timeout=1200)
+    logger.info("batch_finished job=%s result=%s", job_path, output[-4000:])
