@@ -1,0 +1,101 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Code Quality & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install linting dependencies
+        run: |
+          pip install --upgrade pip
+          pip install flake8
+
+      - name: Flake8 check for syntax and fatal errors (fail-fast)
+        run: |
+          # Stop build on Python syntax errors or undefined names
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics \
+            --exclude=.git,__pycache__,.venv,venv,build,dist,src/ml/models,src/ml/datasets
+
+      - name: Run Flake8 with repo standards (.flake8)
+        run: |
+          # Checks formatting with warnings count according to repo policy
+          flake8 src/ orchestration/ tests/ scripts/ --config=.flake8 --count --statistics --exit-zero
+
+  validate-configs:
+    name: Validate Configurations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate Docker Compose Configuration
+        run: |
+          # Provide dummy env values for compose interpolation check
+          cp .env.example .env
+          docker compose config --quiet
+          echo "Docker Compose config is valid."
+
+      - name: Python Syntax Compilation Check (py_compile)
+        run: |
+          python -c "
+          import py_compile, pathlib, sys
+          errors = 0
+          for d in ['src', 'orchestration', 'scripts', 'tests']:
+              for p in pathlib.Path(d).rglob('*.py'):
+                  try:
+                      py_compile.compile(str(p), doraise=True)
+                  except Exception as e:
+                      print(f'SYNTAX ERROR in {p}: {e}', file=sys.stderr)
+                      errors += 1
+          if errors:
+              print(f'Total syntax errors: {errors}', file=sys.stderr)
+              sys.exit(1)
+          print('All Python files compiled successfully without syntax errors.')
+          "
+
+  test:
+    name: Smoke & Unit Tests
+    runs-on: ubuntu-latest
+    needs: [lint, validate-configs]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run Smoke & Unit Tests (Pytest)
+        run: |
+          pytest tests/ -v -m "not integration"

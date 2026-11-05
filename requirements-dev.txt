@@ -3,6 +3,10 @@
 # Containerized Spark/Airflow images ship with most of these already.
 
 -r requirements.txt
+-r requirements-api.txt
+-r requirements-control.txt
+PyYAML>=6.0
+httpx>=0.28,<1
 
 jupyterlab>=4.0.0
 ipykernel>=6.0.0
