@@ -6,6 +6,8 @@ sensor simulator directory is added to sys.path (same trick the simulator uses).
 
 import os
 import sys
+import json
+import pytest
 
 SIM_DIR = os.path.abspath(
     os.path.join(
@@ -108,3 +110,16 @@ def test_clean_state_kept_after_dropout(monkeypatch):
     generator.generate(_sensor())
     # State must keep continuity (a clean reading) for the next cycle.
     assert generator.state[9001]["soil_moisture"] is not None
+
+
+@pytest.mark.parametrize("bounds,diurnal", [((-10, -9), -30), ((69, 70), 30)])
+def test_clean_generator_respects_admission_contract_at_temperature_extremes(monkeypatch, bounds, diurnal):
+    from src.common.sensor_contract import sensor_json_error
+    config = _crop_config()
+    config[1]["air_temp"] = bounds
+    config[1]["soil_temp"] = bounds
+    generator = gen.DataGenerator(config)
+    generator.anomaly_rate = 0
+    monkeypatch.setattr(generator, "_diurnal_offset", lambda *args: diurnal)
+    reading = generator.generate(_sensor())
+    assert sensor_json_error(json.dumps(reading)) is None
