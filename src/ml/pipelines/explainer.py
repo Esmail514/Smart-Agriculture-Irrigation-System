@@ -4,9 +4,15 @@ import tempfile
 import joblib
 import numpy as np
 
+# Compatibility shim for NumPy 2.0+ with older SHAP releases
+if not hasattr(np, "obj2sctype"):
+    np.obj2sctype = lambda x: np.dtype(x).type
+if not hasattr(np, "bool8"):
+    np.bool8 = np.bool_
+
 try:
     import shap
-except ImportError:
+except (ImportError, Exception):
     shap = None
 
 from ml.pipelines.settings import MODEL_PATH, FEATURE_NAMES_PATH, SHAP_VALUES_PATH

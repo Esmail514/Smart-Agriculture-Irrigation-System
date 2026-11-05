@@ -9,7 +9,7 @@
 pyspark==3.5.0
 pyarrow>=14.0.0
 pandas>=2.0.0
-numpy>=1.24.0
+numpy>=1.24.0,<2.0.0
 
 # --- Database / Message Queue drivers ---
 psycopg2-binary==2.9.10

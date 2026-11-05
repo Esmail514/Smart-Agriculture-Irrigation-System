@@ -196,6 +196,11 @@ def test_atomic_dump_persists_safely_and_cleans_temporary_files(tmp_path):
 
 def test_local_shap_explainability():
     pytest.importorskip("sklearn")
+    import numpy as np
+    if not hasattr(np, "obj2sctype"):
+        np.obj2sctype = lambda x: np.dtype(x).type
+    if not hasattr(np, "bool8"):
+        np.bool8 = np.bool_
     from sklearn.ensemble import RandomForestClassifier
     from src.ml.pipelines.explainer import explain_local_instances, compute_shap_values
 
