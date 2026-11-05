@@ -19,11 +19,12 @@ CREATE TABLE IF NOT EXISTS agri_gold.zone_summary_latest
     avg_soil_temperature  Float64,
     avg_air_temperature   Float64,
     avg_air_humidity      Float64,
-    moisture_min          Float64,
-    moisture_max          Float64,
-    recommended_water_mm  Float64,
-    last_update           DateTime,
-    water_status          String
+    moisture_min          Nullable(Float64),
+    moisture_max          Nullable(Float64),
+    recommended_water_mm  Nullable(Float64),
+    last_update           DateTime64(6, 'UTC'),
+    water_status          String,
+    snapshot_id Int64 DEFAULT 0
 )
 ENGINE = MergeTree()
 ORDER BY (farm_id, zone_id)
@@ -43,13 +44,14 @@ CREATE TABLE IF NOT EXISTS agri_gold.zone_summary_history
     avg_soil_temperature  Float64,
     avg_air_temperature   Float64,
     avg_air_humidity      Float64,
-    moisture_min          Float64,
-    moisture_max          Float64,
-    recommended_water_mm  Float64,
-    last_update           DateTime,
-    water_status          String
+    moisture_min          Nullable(Float64),
+    moisture_max          Nullable(Float64),
+    recommended_water_mm  Nullable(Float64),
+    last_update           DateTime64(6, 'UTC'),
+    water_status          String,
+    snapshot_id Int64 DEFAULT 0
 )
-ENGINE = MergeTree()
+ENGINE = ReplacingMergeTree(snapshot_id)
 PARTITION BY toYYYYMM(last_update)
 ORDER BY (farm_id, zone_id, last_update)
 SETTINGS index_granularity = 8192;
@@ -67,7 +69,8 @@ CREATE TABLE IF NOT EXISTS agri_gold.farm_summary_latest
     dry_readings          Int64,
     healthy_readings      Int64,
     overwatered_readings  Int64,
-    last_update           DateTime
+    last_update           DateTime64(6, 'UTC'),
+    snapshot_id Int64 DEFAULT 0
 )
 ENGINE = MergeTree()
 ORDER BY (farm_id)
@@ -86,9 +89,10 @@ CREATE TABLE IF NOT EXISTS agri_gold.farm_summary_history
     dry_readings          Int64,
     healthy_readings      Int64,
     overwatered_readings  Int64,
-    last_update           DateTime
+    last_update           DateTime64(6, 'UTC'),
+    snapshot_id Int64 DEFAULT 0
 )
-ENGINE = MergeTree()
+ENGINE = ReplacingMergeTree(snapshot_id)
 PARTITION BY toYYYYMM(last_update)
 ORDER BY (farm_id, last_update)
 SETTINGS index_granularity = 8192;
@@ -102,13 +106,13 @@ CREATE TABLE IF NOT EXISTS agri_gold.irrigation_alerts
     crop_name             String,
     soil_moisture         Float64,
     water_status          String,
-    recommended_water_mm  Float64,
-    event_time            DateTime,
-    processing_time       DateTime
+    recommended_water_mm  Nullable(Float64),
+    event_time            DateTime64(6, 'UTC'),
+    processing_time       DateTime64(6, 'UTC')
 )
-ENGINE = MergeTree()
-PARTITION BY toYYYYMM(processing_time)
-ORDER BY (processing_time, reading_id)
+ENGINE = ReplacingMergeTree(event_time)
+PARTITION BY toYYYYMM(event_time)
+ORDER BY (event_time, reading_id)
 SETTINGS index_granularity = 8192;
 
 -- TABLE: farm_weather_daily
@@ -139,8 +143,10 @@ CREATE TABLE IF NOT EXISTS agri_gold.weather_irrigation_alerts
     crop_id Int64,
     crop_name String,
     soil_moisture Float64,
-    expected_rain Float64,
-    recommended_water_mm Float64,
+    expected_rain Nullable(Float64),
+    observed_rain_mm Nullable(Float64),
+    weather_available UInt8,
+    recommended_water_mm Nullable(Float64),
     irrigation_decision String,
     weather_condition String,
     event_time DateTime64(6),
@@ -160,14 +166,14 @@ CREATE TABLE IF NOT EXISTS agri_gold.ml_predictions
     farm_name               String,
     crop_name               String,
     needs_irrigation_today  UInt8,
-    needs_irrigation_tomorrow UInt8,
+    needs_irrigation_tomorrow Nullable(UInt8),
     prediction_confidence   Float64,
     model_version           String,
     prediction_date         Date,
     prediction_time         DateTime64(6),
     feature_snapshot        String
 )
-ENGINE = MergeTree()
+ENGINE = ReplacingMergeTree(prediction_time)
 PARTITION BY toYYYYMM(prediction_date)
 ORDER BY (zone_id, prediction_date)
 SETTINGS index_granularity = 8192;

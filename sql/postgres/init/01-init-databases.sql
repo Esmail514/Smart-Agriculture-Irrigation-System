@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS crops (
     air_temp_max             DECIMAL(5,2),
     humidity_min              DECIMAL(5,2),
     humidity_max              DECIMAL(5,2),
-    created_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at                TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS farms (
@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS farms (
     latitude            DECIMAL(9,6),
     longitude           DECIMAL(9,6),
     total_area_hectare  DECIMAL(10,2),
-    created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at          TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS zones (
@@ -36,17 +36,17 @@ CREATE TABLE IF NOT EXISTS zones (
     zone_name     VARCHAR(100) NOT NULL,
     area_hectare  DECIMAL(10,2),
     soil_type     VARCHAR(50) CHECK (soil_type IN ('Loam', 'Sandy', 'Clay', 'Silty')),
-    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at    TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_zone_farm FOREIGN KEY (farm_id) REFERENCES farms(farm_id) ON DELETE CASCADE,
     CONSTRAINT fk_zone_crop FOREIGN KEY (crop_id) REFERENCES crops(crop_id) ON DELETE CASCADE,
-    CONSTRAINT uq_zone_name UNIQUE (zone_name)
+    CONSTRAINT uq_farm_zone_name UNIQUE (farm_id, zone_name)
 );
 
 CREATE TABLE IF NOT EXISTS sensors (
     sensor_id    BIGSERIAL PRIMARY KEY,
     zone_id      BIGINT NOT NULL,
     sensor_code  VARCHAR(100) NOT NULL UNIQUE,
-    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at   TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_sensor_zone FOREIGN KEY (zone_id) REFERENCES zones(zone_id) ON DELETE CASCADE
 );
 
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS irrigation_rules (
     temperature_min        DECIMAL(5,2),
     temperature_max        DECIMAL(5,2),
     recommended_water_mm   DECIMAL(6,2),
-    created_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at             TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_rule_crop FOREIGN KEY (crop_id) REFERENCES crops(crop_id) ON DELETE CASCADE,
     CONSTRAINT uq_rule_crop UNIQUE (crop_id)
 );
