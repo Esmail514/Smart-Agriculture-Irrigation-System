@@ -5,7 +5,7 @@ Single source of truth for all ML module configuration.
 import os
 from pathlib import Path
 
-from src.common.config.clickhouse import (
+from common.config.clickhouse import (
     CLICKHOUSE_HOST, CLICKHOUSE_PORT, CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD, CLICKHOUSE_DATABASE,
 )
@@ -32,10 +32,19 @@ NUMERIC_FEATURES = [
     "moisture_deficit", "moisture_surplus", "sensor_count",
     "avg_temperature", "avg_humidity", "total_rain", "avg_wind_speed",
     "moisture_rolling_mean_3", "moisture_trend", "month", "day_of_week", "season",
+    "vpd_kpa", "field_capacity", "wilting_point", "raw_water",
+    "moisture_depletion_rate_hourly", "et0_est", "etc_est",
 ]
 
 CATEGORICAL_FEATURES = ["crop_id", "zone_id", "farm_id"]
 ALL_FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES
+
+SOIL_WATER_PROPERTIES = {
+    "Sandy": {"fc": 15.0, "pwp": 6.0, "mad": 0.50},
+    "Loam": {"fc": 27.0, "pwp": 12.0, "mad": 0.50},
+    "Silty": {"fc": 31.0, "pwp": 14.0, "mad": 0.50},
+    "Clay": {"fc": 38.0, "pwp": 22.0, "mad": 0.50},
+}
 
 CLIP_BOUNDS = {
     "avg_soil_moisture": (0.0, 100.0),
@@ -46,6 +55,10 @@ CLIP_BOUNDS = {
     "avg_humidity": (0.0, 100.0),
     "total_rain": (0.0, 200.0),
     "avg_wind_speed": (0.0, 60.0),
+    "vpd_kpa": (0.0, 15.0),
+    "moisture_depletion_rate_hourly": (-15.0, 15.0),
+    "et0_est": (0.0, 15.0),
+    "etc_est": (0.0, 25.0),
 }
 
 RAIN_SKIP_THRESHOLD_MM = float(os.getenv("RAIN_SKIP_THRESHOLD_MM", "2.0"))
@@ -59,6 +72,10 @@ MODEL_PARAMS = {
     "RandomForest": {
         "n_estimators": 200, "max_depth": 10, "min_samples_leaf": 5,
         "class_weight": "balanced", "random_state": RANDOM_STATE, "n_jobs": -1,
+    },
+    "GradientBoosting": {
+        "n_estimators": 100, "max_depth": 5, "learning_rate": 0.08,
+        "random_state": RANDOM_STATE,
     },
     "XGBoost": {
         "n_estimators": 200, "max_depth": 6, "learning_rate": 0.05,

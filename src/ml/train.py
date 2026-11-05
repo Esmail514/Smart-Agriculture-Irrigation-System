@@ -3,9 +3,7 @@
 from ml.pipelines.loader import load_training_data
 from ml.pipelines.engineer import engineer_features
 from ml.pipelines.trainer import train
-from ml.pipelines.explainer import compute_shap_values
 from ml.pipelines.logger import get_logger
-import pandas as pd
 
 logger = get_logger("ml_train")
 
@@ -15,8 +13,7 @@ def main():
 
     raw_data = load_training_data()
     if raw_data.empty:
-        logger.error("No data available for training")
-        return
+        raise RuntimeError("No data available for training")
 
     features = engineer_features(raw_data)
     report = train(features)
@@ -25,6 +22,8 @@ def main():
         logger.info("Training complete: %s", report.get("best_model"))
     else:
         logger.warning("Training skipped or failed: %s", report)
+        if report.get("status") == "failed":
+            raise RuntimeError(f"Model training failed: {report}")
 
     logger.info("=== ML Training Pipeline Complete ===")
 
