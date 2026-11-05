@@ -1,4 +1,4 @@
-from common.config.minio import (
+from .minio import (
     MINIO_ENDPOINT,
     MINIO_ACCESS_KEY,
     MINIO_SECRET_KEY,
@@ -20,7 +20,7 @@ from common.config.minio import (
     CHECKPOINT_GOLD_FARM,
     CHECKPOINT_GOLD_ALERTS,
 )
-from common.config.kafka import (
+from .kafka import (
     KAFKA_BOOTSTRAP_SERVERS,
     KAFKA_TOPIC_SENSORS,
     KAFKA_TOPIC_WEATHER,
@@ -28,7 +28,7 @@ from common.config.kafka import (
     KAFKA_TOPIC_COMMANDS,
     SENSOR_TOPIC,
 )
-from common.config.postgres import (
+from .postgres import (
     POSTGRES_HOST,
     POSTGRES_PORT,
     POSTGRES_DB,
@@ -38,7 +38,7 @@ from common.config.postgres import (
     POSTGRES_JDBC_PROPERTIES,
     POSTGRES_CONFIG,
 )
-from common.config.clickhouse import (
+from .clickhouse import (
     CLICKHOUSE_HOST,
     CLICKHOUSE_PORT,
     CLICKHOUSE_USER,
@@ -47,11 +47,11 @@ from common.config.clickhouse import (
     CLICKHOUSE_JDBC_URL,
     CLICKHOUSE_JDBC_DRIVER,
 )
-from common.config.spark import (
+from .spark import (
     STREAM_TRIGGER_INTERVAL,
     TIMESTAMP_FORMAT,
 )
-from common.config.weather import (
+from .weather import (
     OPENWEATHER_API_KEY,
     OPENWEATHER_BASE_URL,
 )

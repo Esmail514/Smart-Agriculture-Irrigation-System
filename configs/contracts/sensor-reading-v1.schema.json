@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:smart-agriculture:sensor-reading:1",
+  "title": "Sensor reading version 1 (UTC, Celsius, percent)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sensor_id", "sensor_code", "zone_id", "zone_name", "farm_id", "farm_name", "crop_id", "crop_name", "reading_id", "timestamp", "soil_moisture", "soil_temperature", "air_temperature", "air_humidity"],
+  "$defs": {
+    "id": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807},
+    "name": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "percent": {"type": "number", "minimum": 0, "maximum": 100},
+    "temperature": {"type": "number", "minimum": -10, "maximum": 70}
+  },
+  "properties": {
+    "schema_version": {"const": 1, "type": "integer", "default": 1},
+    "sensor_id": {"$ref": "#/$defs/id"},
+    "zone_id": {"$ref": "#/$defs/id"},
+    "farm_id": {"$ref": "#/$defs/id"},
+    "crop_id": {"$ref": "#/$defs/id"},
+    "sensor_code": {"$ref": "#/$defs/name"},
+    "zone_name": {"$ref": "#/$defs/name"},
+    "farm_name": {"$ref": "#/$defs/name"},
+    "crop_name": {"$ref": "#/$defs/name"},
+    "reading_id": {"$ref": "#/$defs/name"},
+    "soil_moisture": {"$ref": "#/$defs/percent"},
+    "air_humidity": {"$ref": "#/$defs/percent"},
+    "soil_temperature": {"$ref": "#/$defs/temperature"},
+    "air_temperature": {"$ref": "#/$defs/temperature"},
+    "timestamp": {"type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$"}
+  }
+}

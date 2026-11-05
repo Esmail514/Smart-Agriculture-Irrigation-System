@@ -14,6 +14,7 @@ from pyspark.sql.functions import (
 )
 
 from common.transformations import compute_water_status
+from common.snapshots import read_latest_snapshot, publish_snapshot
 
 
 def create_zone_summary(df):
@@ -29,7 +30,7 @@ def create_zone_summary(df):
             avg("moisture_min").alias("moisture_min"),
             avg("moisture_max").alias("moisture_max"),
             avg("recommended_water_mm").alias("recommended_water_mm"),
-            spark_max("processing_time").alias("last_update"),
+            spark_max("event_time").alias("last_update"),
         )
         .withColumn(
             "water_status",
@@ -51,7 +52,7 @@ def create_farm_summary(df):
             spark_sum(when(col("water_status") == "Dry", 1).otherwise(0)).alias("dry_readings"),
             spark_sum(when(col("water_status") == "Optimal", 1).otherwise(0)).alias("healthy_readings"),
             spark_sum(when(col("water_status") == "Overwatered", 1).otherwise(0)).alias("overwatered_readings"),
-            spark_max("processing_time").alias("last_update"),
+            spark_max("event_time").alias("last_update"),
         )
     )
 
@@ -59,7 +60,7 @@ def create_farm_summary(df):
 def create_irrigation_alerts(df):
     return (
         df
-        .filter(col("water_status") != "Optimal")
+        .filter(col("water_status").isin("Dry", "Overwatered"))
         .select(
             "reading_id",       
             "farm_name",
@@ -78,13 +79,16 @@ def upsert_latest(spark, new_summary_df, path, key_column, timestamp_column="las
     if new_summary_df.rdd.isEmpty():
         return
 
-    try:
-        existing_df = spark.read.parquet(path)
-        combined_df = existing_df.unionByName(new_summary_df, allowMissingColumns=True)
-    except Exception:
-        combined_df = new_summary_df
+    existing_df = read_latest_snapshot(spark, path, schema=new_summary_df.schema)
+    combined_df = (existing_df.unionByName(new_summary_df)
+                   if existing_df is not None else new_summary_df)
 
-    window = Window.partitionBy(key_column).orderBy(col(timestamp_column).desc())
+    order = [col(timestamp_column).desc()]
+    # Sensor events can share timestamps. Select the same event on retry rather
+    # than using processing time or nondeterministic input order as a tie break.
+    if "reading_id" in combined_df.columns:
+        order.append(col("reading_id").desc())
+    window = Window.partitionBy(key_column).orderBy(*order)
 
     deduped_df = (
         combined_df
@@ -93,28 +97,4 @@ def upsert_latest(spark, new_summary_df, path, key_column, timestamp_column="las
         .drop("_rn")
     )
 
-    # Stage the new snapshot out-of-band and swap directories with the Hadoop
-    # FS instead of overwriting the target in place.  A kill mid-swap leaves
-    # either the old snapshot or the new one on disk (never a partial file set),
-    # and the next cycle self-heals from whatever survived.
-    staging_path = f"{path}.staging"
-    backup_path = f"{path}.backup"
-
-    (deduped_df.write.format("parquet").mode("overwrite").save(staging_path))
-
-    jvm = spark.sparkContext._jvm
-    path_cls = jvm.org.apache.hadoop.fs.Path
-    conf = spark.sparkContext._jsc.hadoopConfiguration()
-    fs = jvm.org.apache.hadoop.fs.FileSystem.get(path_cls(path).toUri(), conf)
-
-    target_p = path_cls(path)
-    staging_p = path_cls(staging_path)
-    backup_p = path_cls(backup_path)
-
-    if fs.exists(backup_p):
-        fs.delete(backup_p, True)
-    if fs.exists(target_p):
-        fs.rename(target_p, backup_p)
-    fs.rename(staging_p, target_p)
-    if fs.exists(backup_p):
-        fs.delete(backup_p, True)
+    publish_snapshot(spark, deduped_df, path)

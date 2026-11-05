@@ -1,24 +1,39 @@
-from pyspark.sql.functions import broadcast, col, current_timestamp, to_timestamp, when
+from pyspark.sql.functions import broadcast, col, coalesce, current_timestamp, lit, to_timestamp, trim, when
 
 from common.config import TIMESTAMP_FORMAT
+from common.sensor_contract import RANGES
 
-VALID_SOIL_MOISTURE_RANGE = (0, 100)
-VALID_TEMPERATURE_RANGE = (-10, 70)
-VALID_HUMIDITY_RANGE = (0, 100)
+VALID_SOIL_MOISTURE_RANGE = RANGES["soil_moisture"]
+VALID_TEMPERATURE_RANGE = RANGES["air_temperature"]
+VALID_HUMIDITY_RANGE = RANGES["air_humidity"]
 
 
-def split_valid_and_rejected(df):
+def sensor_validity_condition():
+    """Fail closed: SQL NULL must never silently disappear from both outputs."""
     condition = (
-        col("sensor_id").isNotNull()
-        & col("timestamp").isNotNull()
+        (col("sensor_id") > 0)
+        & (col("zone_id") > 0)
+        & (col("farm_id") > 0)
+        & (col("crop_id") > 0)
+        & (trim(col("reading_id")) != "")
+        & to_timestamp(col("timestamp"), TIMESTAMP_FORMAT).isNotNull()
         & col("soil_moisture").between(*VALID_SOIL_MOISTURE_RANGE)
         & col("soil_temperature").between(*VALID_TEMPERATURE_RANGE)
         & col("air_temperature").between(*VALID_TEMPERATURE_RANGE)
         & col("air_humidity").between(*VALID_HUMIDITY_RANGE)
     )
 
+    for field in ("sensor_code", "zone_name", "farm_name", "crop_name"):
+        condition = condition & (trim(col(field)) != "")
+    return coalesce(condition, lit(False))
+
+
+def split_valid_and_rejected(df):
+    condition = sensor_validity_condition()
     valid_df = df.filter(condition)
-    rejected_df = df.filter(~condition).withColumn("rejected_at", current_timestamp())
+    rejected_df = (df.filter(~condition)
+                   .withColumn("rejection_reason", lit("invalid_sensor_contract"))
+                   .withColumn("rejected_at", current_timestamp()))
 
     return valid_df, rejected_df
 
