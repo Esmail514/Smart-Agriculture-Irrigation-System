@@ -12,17 +12,17 @@ pandas>=2.0.0
 numpy>=1.24.0
 
 # --- Database / Message Queue drivers ---
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.10
 kafka-python==2.0.2
 clickhouse-connect==0.7.0
-requests==2.31.0
+requests==2.32.5
 
 # --- Data Lake (MinIO S3A) ---
 # Handled inside Spark via hadoop-aws / aws-java-sdk-bundle JARs
 # dropped in ./infra/spark/jars/. No Python deps required for that.
 
 # --- Airflow utilities ---
-docker==7.0.0
+docker==7.1.0
 pendulum>=3.0.0
 
 # --- ML (training & inference) ---

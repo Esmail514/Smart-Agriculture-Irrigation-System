@@ -9,11 +9,12 @@
 #                              ↓
 #               Spark Business Logic → MinIO (Gold)
 #                              ↓
-#                         ClickHouse → Power BI
+#                         ClickHouse → Application / Grafana
 #
 # Additional Sources: Weather API, PostgreSQL (Crop Data)
 # Monitoring: Prometheus + Grafana
-# Orchestration: Apache Airflow (CeleryExecutor + Redis)
+# Orchestration: Apache Airflow (LocalExecutor)
+# Optional profiles: tools (Kafka UI, Spark history), monitoring (Grafana/exporters).
 # ============================================================
 
 # ============================================================
@@ -28,6 +29,10 @@ networks:
   # Isolated monitoring network
   monitoring-net:
     name: agri-monitoring-net
+    driver: bridge
+
+  control-net:
+    internal: true
     driver: bridge
 
 # ============================================================
@@ -92,15 +97,16 @@ x-airflow-common-env:
   # NOTE: Celery broker/result-backend settings removed - LocalExecutor
   # executes tasks in-process (subprocesses of the scheduler), no broker.
   # Core settings
-  AIRFLOW__CORE__EXECUTOR: ${AIRFLOW_EXECUTOR}
+  AIRFLOW__CORE__EXECUTOR: LocalExecutor
   AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
   AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
   AIRFLOW__CORE__LOAD_EXAMPLES: "false"
   AIRFLOW__CORE__DEFAULT_TIMEZONE: UTC
   # Webserver
   AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
-  AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+  AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "false"
   AIRFLOW__WEBSERVER__WORKERS: 2
+  AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
   # Scheduler
   AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 60
   # Connections for project services
@@ -139,6 +145,7 @@ x-spark-common-env:
   MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
   MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
   LAKEHOUSE_BUCKET: ${LAKEHOUSE_BUCKET:-agri-lakehouse}
+  METADATA_SNAPSHOT_MAX_ROWS: ${METADATA_SNAPSHOT_MAX_ROWS:-100000}
   # PostgreSQL (for Spark JDBC reads of irrigation_rules)
   POSTGRES_HOST: ${POSTGRES_HOST}
   POSTGRES_PORT: ${INTERNAL_POSTGRES_PORT}
@@ -219,6 +226,7 @@ services:
     <<: [ *restart-policy, *common-logging ]
     environment:
       # --- KRaft Configuration ---
+      KAFKA_LOG_MESSAGE_TIMESTAMP_TYPE: LogAppendTime
       KAFKA_NODE_ID: ${KAFKA_NODE_ID}
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: "${KAFKA_NODE_ID}@kafka:${KAFKA_CONTROLLER_PORT}"
@@ -307,7 +315,7 @@ services:
         done
 
         echo 'Creating Kafka topics...'
-        /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --topic $${KAFKA_TOPIC_SENSORS} --partitions 3 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --topic $${KAFKA_TOPIC_SENSORS} --partitions 3 --replication-factor 1 --config message.timestamp.type=LogAppendTime
         /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --topic sensor-data --partitions 3 --replication-factor 1
         /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --topic $${KAFKA_TOPIC_WEATHER} --partitions 2 --replication-factor 1
         /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --topic $${KAFKA_TOPIC_ALERTS} --partitions 2 --replication-factor 1
@@ -319,7 +327,8 @@ services:
 
   # Kafka UI - Web interface to monitor topics, consumers, messages
   kafka-ui:
-    image: provectuslabs/kafka-ui:latest
+    profiles: [tools]
+    image: provectuslabs/kafka-ui:v0.7.2
     container_name: agri-kafka-ui
     hostname: kafka-ui
     <<: [ *restart-policy, *common-logging ]
@@ -354,7 +363,7 @@ services:
   # Lakehouse Zones: Bronze / Silver / Gold
   # ===========================================================
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2024-05-10T02-42-08Z
     container_name: agri-minio
     hostname: minio
     <<: [ *restart-policy, *common-logging ]
@@ -388,7 +397,7 @@ services:
 
   # MinIO Client - Automatically creates all required buckets
   minio-init:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2024-05-09T17-04-24Z
     container_name: agri-minio-init
     depends_on:
       minio:
@@ -398,14 +407,16 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      LAKEHOUSE_BUCKET: ${LAKEHOUSE_BUCKET:-agri-lakehouse}
     entrypoint: [ "/bin/sh", "-c" ]
     command:
       - |
+        set -eu
         echo ">>> Configuring MinIO client..."
-        mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}
+        mc alias set myminio http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
 
         echo ">>> Creating Lakehouse buckets..."
-        mc mb --ignore-existing myminio/agri-lakehouse
+        mc mb --ignore-existing "myminio/$${LAKEHOUSE_BUCKET}"
 
   # ===========================================================
   # LAYER 4: PROCESSING ENGINE - Apache Spark 3.5
@@ -415,7 +426,10 @@ services:
 
   # Spark Master - Coordinates job submissions and resource management
   spark-master:
-    image: jupyter/pyspark-notebook:spark-3.5.0
+    image: smart-agri/spark:3.5.0-v2
+    build:
+      context: .
+      dockerfile: infra/spark/Dockerfile
     container_name: agri-spark-master
     hostname: spark-master
     <<: [ *restart-policy, *common-logging ]
@@ -446,7 +460,6 @@ services:
     command: >
       bash -c "
         export SPARK_HOME=/usr/local/spark &&
-        bash /opt/spark/scripts/auto_kill_streaming_jobs.sh &
         $$SPARK_HOME/sbin/start-master.sh --host spark-master --port ${SPARK_MASTER_PORT} --webui-port ${SPARK_MASTER_WEBUI_PORT} &&
         tail -f $$SPARK_HOME/logs/*.out
       "
@@ -458,15 +471,17 @@ services:
       start_period: 30s
     deploy:
       resources:
-        # Hosts up to FOUR concurrent streaming driver JVMs (768m heap each,
-        # ~300MB real RSS each) + the 512m master daemon. Observed peak was
-        # 1.27GB; a cgroup OOM occurred at 2g during 4-driver overlap.
+        # Four streaming drivers plus bounded local batch jobs. Tune using
+        # measured RSS; Docker limits are ceilings, not a capacity guarantee.
         limits:
-          memory: 2560m
+          memory: 4g
 
   # Spark Worker - Executes tasks assigned by Spark Master
   spark-worker:
-    image: jupyter/pyspark-notebook:spark-3.5.0
+    image: smart-agri/spark:3.5.0-v2
+    build:
+      context: .
+      dockerfile: infra/spark/Dockerfile
     container_name: agri-spark-worker
     hostname: spark-worker
     <<: [ *restart-policy, *common-logging ]
@@ -514,11 +529,15 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2560m
+          memory: 4g
 
   # Spark History Server - Browse completed & running application logs
   spark-history:
-    image: jupyter/pyspark-notebook:spark-3.5.0
+    profiles: [tools]
+    image: smart-agri/spark:3.5.0-v2
+    build:
+      context: .
+      dockerfile: infra/spark/Dockerfile
     container_name: agri-spark-history
     hostname: spark-history
     <<: [ *restart-policy, *common-logging ]
@@ -564,7 +583,7 @@ services:
   # ClickHouse - Columnar OLAP for Gold Layer / Power BI
   # ===========================================================
   clickhouse:
-    image: clickhouse/clickhouse-server:latest
+    image: clickhouse/clickhouse-server:24.3.4.147-lts
     container_name: agri-clickhouse
     hostname: clickhouse
     <<: [ *restart-policy, *common-logging ]
@@ -609,14 +628,15 @@ services:
 
   # Airflow Init - Database migration + admin user creation
   airflow-init:
-    image: apache/airflow:2.9.1
+    image: smart-agri/airflow:2.9.1-v2
+    build:
+      context: .
+      dockerfile: infra/airflow/Dockerfile
     container_name: agri-airflow-init
     depends_on:
       <<: *airflow-common-depends
     environment:
       <<: *airflow-common-env
-      _AIRFLOW_DB_MIGRATE: "true"
-      _AIRFLOW_WWW_USER_CREATE: "true"
       _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USER}
       _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
       _AIRFLOW_WWW_USER_FIRSTNAME: ${AIRFLOW_ADMIN_FIRSTNAME}
@@ -629,16 +649,14 @@ services:
       - airflow_logs:/opt/airflow/logs
     networks:
       - agri-net
-    command: >
-      bash -c "
-        airflow db migrate &&
-        airflow users create --username $${AIRFLOW_ADMIN_USER} --password $${AIRFLOW_ADMIN_PASSWORD} --firstname $${AIRFLOW_ADMIN_FIRSTNAME} --lastname $${AIRFLOW_ADMIN_LASTNAME} --email $${AIRFLOW_ADMIN_EMAIL} --role Admin || true
-        echo 'Airflow init complete!'
-      "
+    command: ["python", "/opt/airflow/init_airflow.py"]
 
   # Airflow Webserver - Web UI for DAG management
   airflow-webserver:
-    image: apache/airflow:2.9.1
+    image: smart-agri/airflow:2.9.1-v2
+    build:
+      context: .
+      dockerfile: infra/airflow/Dockerfile
     container_name: agri-airflow-webserver
     hostname: airflow-webserver
     <<: [ *restart-policy, *common-logging ]
@@ -653,6 +671,7 @@ services:
       - "8085:8080" # Airflow Web UI
     networks:
       - agri-net
+      - control-net
     command: webserver
     healthcheck:
       test: [ "CMD-SHELL", "curl -sf http://localhost:8080/health > /dev/null" ]
@@ -667,7 +686,10 @@ services:
 
   # Airflow Scheduler - Parses DAGs and triggers task instances
   airflow-scheduler:
-    image: apache/airflow:2.9.1
+    image: smart-agri/airflow:2.9.1-v2
+    build:
+      context: .
+      dockerfile: infra/airflow/Dockerfile
     container_name: agri-airflow-scheduler
     hostname: airflow-scheduler
     <<: [ *restart-policy, *common-logging ]
@@ -707,7 +729,8 @@ services:
 
   # Prometheus - Time-series metrics collection
   prometheus:
-    image: prom/prometheus:latest
+    profiles: [monitoring]
+    image: prom/prometheus:v2.52.0
     container_name: agri-prometheus
     hostname: prometheus
     <<: [ *restart-policy, *common-logging ]
@@ -718,13 +741,12 @@ services:
       - "--web.console.libraries=/usr/share/prometheus/console_libraries"
       - "--web.console.templates=/usr/share/prometheus/consoles"
       - "--web.enable-lifecycle"
-      - "--web.enable-admin-api"
     volumes:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./infra/prometheus/rules:/etc/prometheus/rules:ro
       - prometheus_data:/prometheus
     ports:
-      - "9090:9090" # Prometheus Web UI + API
+      - "127.0.0.1:9090:9090" # Local monitoring UI; use a secured proxy for remote access
     networks:
       - agri-net
       - monitoring-net
@@ -741,7 +763,8 @@ services:
 
   # Grafana - Visualization dashboards
   grafana:
-    image: grafana/grafana:latest
+    profiles: [monitoring]
+    image: grafana/grafana:11.0.0
     container_name: agri-grafana
     hostname: grafana
     <<: [ *restart-policy, *common-logging ]
@@ -751,7 +774,9 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
-      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource,grafana-piechart-panel
+      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_DB: ${POSTGRES_DB}
@@ -766,7 +791,7 @@ services:
       - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
-      - "3000:3000" # Grafana Web UI
+      - "127.0.0.1:3000:3000" # Local admin dashboards; use a secured proxy for remote access
     networks:
       - agri-net
       - monitoring-net
@@ -780,3 +805,147 @@ services:
       resources:
         limits:
           memory: 512m
+
+  # HTTP/TCP probes provide health checks without pretending JMX is HTTP.
+  api:
+    build:
+      context: .
+      dockerfile: infra/api/Dockerfile
+    container_name: agri-api
+    <<: [ *restart-policy, *common-logging ]
+    environment:
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_HTTP_PORT: 8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      API_TOKEN: ${API_TOKEN:-}
+      API_FARM_IDS: ${API_FARM_IDS:-}
+      API_ACCOUNTS_JSON: ${API_ACCOUNTS_JSON:-[]}
+      API_USER_EMAIL: ${API_USER_EMAIL:-}
+      API_USER_NAME: ${API_USER_NAME:-Farm viewer}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      CONTROL_AGENT_URL: http://control-agent:8010
+      CONTROL_AGENT_TOKEN: ${CONTROL_AGENT_TOKEN:-}
+    volumes:
+      - ./src:/app/src:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks: [agri-net, monitoring-net, control-net]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  control-agent:
+    build:
+      context: .
+      dockerfile: infra/control-agent/Dockerfile
+    container_name: agri-control-agent
+    <<: [ *restart-policy, *common-logging ]
+    environment:
+      CONTROL_AGENT_TOKEN: ${CONTROL_AGENT_TOKEN:-}
+      AIRFLOW_CONTROL_URL: http://airflow-webserver:8080
+      AIRFLOW_ADMIN_USER: ${AIRFLOW_ADMIN_USER}
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [control-net]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8010/health', timeout=5)"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  sensor-simulator:
+    profiles: [simulation]
+    build:
+      context: .
+      dockerfile: infra/simulator/Dockerfile
+    container_name: agri-sensor-simulator
+    <<: [ *restart-policy, *common-logging ]
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_SENSORS: ${KAFKA_TOPIC_SENSORS}
+      SEND_INTERVAL: ${SEND_INTERVAL:-5}
+      ANOMALY_RATE: ${ANOMALY_RATE:-0.03}
+      SIMULATE_IRRIGATION: ${SIMULATE_IRRIGATION:-false}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks: [agri-net]
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  blackbox-exporter:
+    profiles: [monitoring]
+    image: prom/blackbox-exporter:v0.26.0
+    <<: [ *restart-policy, *common-logging ]
+    command: ["--config.file=/etc/blackbox/blackbox.yml"]
+    volumes:
+      - ./infra/prometheus/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    networks: [agri-net, monitoring-net]
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  kafka-exporter:
+    profiles: [monitoring]
+    image: danielqsj/kafka-exporter:v1.8.0
+    <<: [ *restart-policy, *common-logging ]
+    command: ["--kafka.server=kafka:9092"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks: [agri-net, monitoring-net]
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  postgres-exporter:
+    profiles: [monitoring]
+    image: prometheuscommunity/postgres-exporter:v0.17.1
+    <<: [ *restart-policy, *common-logging ]
+    environment:
+      DATA_SOURCE_URI: postgres:5432/${POSTGRES_DB}?sslmode=disable
+      DATA_SOURCE_USER: ${POSTGRES_USER}
+      DATA_SOURCE_PASS: ${POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [agri-net, monitoring-net]
+    deploy:
+      resources:
+        limits:
+          memory: 128m
