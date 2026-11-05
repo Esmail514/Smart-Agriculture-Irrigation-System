@@ -1,131 +1,79 @@
-# ============================================================
-# Prometheus Configuration
-# Smart Agriculture Irrigation System
-# ============================================================
-# Scrapes metrics from all platform services.
-# Retention: 30 days (configurable via CLI flag)
-# ============================================================
-
+# Enable exporters with: docker compose --profile monitoring up -d
 global:
-  scrape_interval:     15s   # How often to scrape targets
-  evaluation_interval: 15s   # How often to evaluate rules
-  scrape_timeout:      10s
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
   external_labels:
-    environment: "smart-agri-dev"
-    project: "smart-agriculture-irrigation"
-
-# --- Alertmanager (optional - configure if you add alertmanager) ---
-# alerting:
-#   alertmanagers:
-#     - static_configs:
-#         - targets: ['alertmanager:9093']
-
-# --- Alert Rules ---
+    project: smart-agriculture-irrigation
 rule_files:
-  - "/etc/prometheus/rules/*.yml"
-
-# ============================================================
-# SCRAPE CONFIGURATIONS
-# ============================================================
+  - /etc/prometheus/rules/*.yml
 scrape_configs:
-
-  # --- Prometheus Self-Monitoring ---
-  - job_name: "prometheus"
+  - job_name: application-api
     static_configs:
-      - targets: ["localhost:9090"]
-    metrics_path: /metrics
-
-  # ============================================================
-  # KAFKA - DISABLED.
-  # Port 9999 is a JMX/RMI endpoint, NOT an HTTP metrics endpoint -
-  # scraping it always failed. Proper Kafka metrics need the
-  # jmx_prometheus_httpserver agent (extra config/RAM on this host):
-  # add the agent jar to KAFKA_EXTRA_ARGS with port 9101, then scrape it here.
-  # ============================================================
-  # - job_name: "kafka"
-  #   static_configs:
-  #     - targets: ["kafka:9101"]
-    # Kafka broker health indicator via HTTP check
-    relabel_configs:
-      - source_labels: [__address__]
-        target_label: instance
-        regex: "(.+):.*"
-        replacement: "$1"
-
-  # ============================================================
-  # CLICKHOUSE - Built-in Prometheus endpoint
-  # Configured via clickhouse/config/prometheus.xml
-  # ============================================================
-  - job_name: "clickhouse"
+      - targets: [api:8000]
+  - job_name: prometheus
     static_configs:
-      - targets: ["clickhouse:8001"]
-    metrics_path: /metrics
-    honor_labels: true
-
-  # ============================================================
-  # AIRFLOW - DISABLED.
-  # Airflow has no built-in HTTP /metrics endpoint; enabling metrics
-  # requires the StatsD exporter sidecar (extra RAM on this host).
-  # Re-enable if a statsd_exporter service is added:
-  # ============================================================
-  # - job_name: "airflow"
-  #   static_configs:
-  #     - targets: ["statsd-exporter:9102"]
-
-  # ============================================================
-  # MINIO - Built-in Prometheus metrics
-  # Endpoint: /minio/v2/metrics/cluster
-  # ============================================================
-  - job_name: "minio"
+      - targets: [prometheus:9090]
+  - job_name: clickhouse
+    static_configs:
+      - targets: [clickhouse:8001]
+  - job_name: minio
     metrics_path: /minio/v2/metrics/cluster
-    scheme: http
     static_configs:
-      - targets: ["minio:9000"]
+      - targets: [minio:9000]
+  - job_name: minio-node
+    metrics_path: /minio/v2/metrics/node
+    static_configs:
+      - targets: [minio:9000]
+  - job_name: kafka
+    static_configs:
+      - targets: [kafka-exporter:9308]
+  - job_name: postgres
+    static_configs:
+      - targets: [postgres-exporter:9187]
+  - job_name: blackbox-exporter
+    static_configs:
+      - targets: [blackbox-exporter:9115]
+  # Endpoint availability does not prove that a streaming job is progressing.
+  - job_name: service-http
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets: [http://spark-master:8090]
+        labels:
+          service: spark-master
+      - targets: [http://spark-worker:8091]
+        labels:
+          service: spark-worker
+      - targets: [http://airflow-webserver:8080/health]
+        labels:
+          service: airflow-webserver
+      - targets: [http://api:8000/health]
+        labels:
+          service: api
     relabel_configs:
       - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
         target_label: instance
-        regex: "(.+):.*"
-        replacement: "$1"
-
-  - job_name: "minio-node"
-    metrics_path: /minio/v2/metrics/node
-    scheme: http
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+  - job_name: service-tcp
+    metrics_path: /probe
+    params:
+      module: [tcp_connect]
     static_configs:
-      - targets: ["minio:9000"]
-
-  # ============================================================
-  # POSTGRESQL - DISABLED.
-  # Plain postgres does not expose /metrics; needs postgres_exporter
-  # sidecar (extra RAM on this host). Re-enable when added:
-  # ============================================================
-  # - job_name: "postgres"
-  #   static_configs:
-  #     - targets: ["postgres-exporter:9187"]
-
-  # ============================================================
-  # SPARK - DISABLED.
-  # Attempted the built-in PrometheusServlet via infra/spark/conf/metrics.properties
-  # (+ explicit SPARK_CONF_DIR); the standalone master/worker daemons of this
-  # jupyter/pyspark-notebook image do not register the servlet sink - both
-  # paths fall through to the UI HTML. Proper Spark metrics need either
-  # spark.ui.prometheus.enabled=true on a Spark 4.x image or a JMX exporter
-  # agent per daemon (extra RAM). Re-enable here once available:
-  # ============================================================
-  # - job_name: "spark-master"
-  #   metrics_path: /metrics/prometheus
-  #   static_configs:
-  #     - targets: ["spark-master:8090"]
-  #
-  # - job_name: "spark-worker"
-  #   metrics_path: /metrics/prometheus
-  #   static_configs:
-  #     - targets: ["spark-worker:8091"]
-
-  # ============================================================
-  # DOCKER ENGINE - via cadvisor (optional)
-  # Uncomment if you add cadvisor service
-  # ============================================================
-  # - job_name: "cadvisor"
-  #   static_configs:
-  #     - targets: ["cadvisor:8080"]
-  #   metrics_path: /metrics
+      - targets: [kafka:9092]
+        labels:
+          service: kafka
+      - targets: [postgres:5432]
+        labels:
+          service: postgres
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

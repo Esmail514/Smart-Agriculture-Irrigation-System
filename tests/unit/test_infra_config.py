@@ -23,9 +23,16 @@ def test_src_ml_mounted_in_all_spark_services():
 
 # --- A2: ML pipeline must consume the weather features ---
 def test_ml_uses_weather_features():
-    src = _read("src/ml/predict_spark.py")
-    assert "from ml.feature_engineering import engineer_features" in src
-    assert "engineer_features(zone_pdf, weather_pdf)" in src
+    import pandas as pd
+    from src.ml.feature_engineering import merge_weather
+
+    zones = pd.DataFrame({"farm_id": [1, 2], "last_update": ["2026-10-07", "2026-10-07"]})
+    weather = pd.DataFrame({"farm_id": [1], "weather_date": ["2026-10-07"],
+                            "last_update": ["2026-10-07T00:00:00Z"],
+                            "total_rain": [4.5], "avg_wind_speed": [2.0]})
+    merged = merge_weather(zones, weather)
+    assert list(merged["weather_available"]) == [1, 0]
+    assert list(merged["total_rain"]) == [4.5, 0.0]
 
 
 # --- A3: weather daily sync must be a full-mirror atomic replace ---
@@ -62,10 +69,9 @@ def test_gold_to_clickhouse_uses_atomic_replace():
     assert "TRUNCATE TABLE" not in src
 
 
-def test_upsert_latest_uses_staged_swap():
-    src = _read("src/common/gold_transformations.py")
-    assert ".staging" in src
-    assert "fs.rename" in src
+# Atomic snapshot publication, interrupted writes, old-reader retention and
+# legacy recovery are exercised behaviorally in test_snapshots.py. Directory
+# rename is not an atomic swap on MinIO/S3 and is deliberately no longer used.
 
 
 # --- A7: Grafana PostgreSQL datasource must point at the real DB ---

@@ -1,62 +1,72 @@
-# ============================================================
-# Prometheus Alert Rules
-# Smart Agriculture Irrigation System
-# ============================================================
 groups:
   - name: agri_infrastructure
     interval: 30s
     rules:
-      # --- Kafka Alerts ---
-      - alert: KafkaBrokerDown
-        expr: up{job="kafka"} == 0
-        for: 1m
-        labels:
-          severity: critical
-          service: kafka
-        annotations:
-          summary: "Kafka broker is down"
-          description: "The Kafka broker has been unreachable for more than 1 minute."
-
-      # --- ClickHouse Alerts ---
-      - alert: ClickHouseDown
-        expr: up{job="clickhouse"} == 0
-        for: 1m
-        labels:
-          severity: critical
-          service: clickhouse
-        annotations:
-          summary: "ClickHouse is down"
-          description: "ClickHouse server is not responding to metrics scrapes."
-
-      # --- MinIO Alerts ---
-      - alert: MinIODown
-        expr: up{job="minio"} == 0
+      - alert: MetricsTargetDown
+        expr: up == 0
         for: 2m
         labels:
           severity: critical
-          service: minio
         annotations:
-          summary: "MinIO is down"
-          description: "MinIO object storage is not reachable."
-
-      # --- Airflow Alerts ---
-      - alert: AirflowWebserverDown
-        expr: up{job="airflow"} == 0
+          summary: "Metrics target {{ $labels.job }} is unavailable"
+          description: "Cannot scrape {{ $labels.instance }}. Check the service and exporter."
+      - alert: ServiceEndpointDown
+        expr: probe_success{job=~"service-http|service-tcp"} == 0
         for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Endpoint {{ $labels.service }} is unavailable"
+      - alert: PostgreSQLDown
+        expr: pg_up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL exporter cannot connect to the database"
+      - alert: KafkaConsumerLagHigh
+        expr: sum by (consumergroup, topic) (kafka_consumergroup_lag{job="kafka"}) > 10000
+        for: 10m
         labels:
           severity: warning
-          service: airflow
         annotations:
-          summary: "Airflow webserver is unreachable"
-          description: "Airflow webserver metrics endpoint is not responding."
-
-      # --- Spark Alerts ---
-      - alert: SparkMasterDown
-        expr: up{job="spark-master"} == 0
-        for: 2m
+          summary: "Kafka consumer lag exceeds 10,000 messages"
+          description: "Consumer {{ $labels.consumergroup }} is behind on {{ $labels.topic }}. Tune the threshold to simulator throughput."
+      - alert: MinIOCapacityLow
+        expr: (minio_cluster_capacity_usable_free_bytes / minio_cluster_capacity_usable_total_bytes) < 0.15
+        for: 10m
         labels:
-          severity: critical
-          service: spark
+          severity: warning
         annotations:
-          summary: "Spark master is down"
-          description: "Spark master node is unreachable."
+          summary: "MinIO has less than 15% usable capacity free"
+      - alert: ApplicationAPIErrorRateHigh
+        expr: (sum(rate(agri_api_requests_total{job="application-api",status=~"5.."}[5m])) / clamp_min(sum(rate(agri_api_requests_total{job="application-api"}[5m])), 0.001) > 0.05) and (sum(increase(agri_api_requests_total{job="application-api"}[5m])) > 20)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Application API server errors exceed 5% of requests"
+      - alert: ApplicationAPILatencyHigh
+        expr: histogram_quantile(0.95, sum by (le) (rate(agri_api_request_duration_seconds_bucket{job="application-api"}[5m]))) > 3 and sum(increase(agri_api_request_duration_seconds_count{job="application-api"}[5m])) > 20
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Application API p95 response time exceeds three seconds"
+      - alert: PrometheusRuleEvaluationFailure
+        expr: increase(prometheus_rule_evaluation_failures_total{job="prometheus"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus failed to evaluate a monitoring rule"
+          description: "Check /rules and server logs; healthy endpoints alone do not validate alerts."
+      - alert: PrometheusConfigurationReloadFailed
+        expr: prometheus_config_last_reload_successful{job="prometheus"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus rejected the most recent configuration reload"
+          description: "The previous configuration may still be active. Validate with promtool before reloading."
+# External notification delivery requires a configured Alertmanager.

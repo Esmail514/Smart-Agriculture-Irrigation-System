@@ -2,7 +2,7 @@
   "id": null,
   "uid": "agri_platform_operations",
   "title": "عمليات خط الأنابيب والبنية التحتية (Lakehouse & Platform Operations)",
-  "description": "مراقبة البنية التحتية لمنظومة البيانات — ClickHouse, MinIO S3, Spark, Kafka, Airflow ومقاييس SLA",
+  "description": "Actual Prometheus service probes, Kafka offsets and database/storage metrics. Endpoint health and data freshness are distinct.",
   "tags": [
     "platform",
     "lakehouse",
@@ -13,7 +13,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 4,
   "editable": true,
   "graphTooltip": 1,
   "time": {
@@ -28,35 +28,115 @@
       "icon": "dashboard",
       "title": "🌐 نظرة عامة (Overview)",
       "type": "link",
-      "url": "/d/agri_overview"
+      "url": "/d/agri_overview",
+      "includeVars": true,
+      "keepTime": true
     },
     {
       "icon": "dashboard",
       "title": "🌱 تحليلات التربة (Soil)",
       "type": "link",
-      "url": "/d/agri_soil_analytics"
+      "url": "/d/agri_soil_analytics",
+      "includeVars": true,
+      "keepTime": true
     },
     {
       "icon": "dashboard",
       "title": "🌦️ الطقس والري (Weather)",
       "type": "link",
-      "url": "/d/agri_weather_irrigation"
+      "url": "/d/agri_weather_irrigation",
+      "includeVars": true,
+      "keepTime": true
     },
     {
       "icon": "dashboard",
       "title": "🧠 توصيات ML (AI/ML)",
       "type": "link",
-      "url": "/d/agri_ai_recommendations"
+      "url": "/d/agri_ai_recommendations",
+      "includeVars": true,
+      "keepTime": true
     },
     {
       "icon": "dashboard",
       "title": "⚡ البنية والعمليات (Platform)",
       "type": "link",
-      "url": "/d/agri_platform_operations"
+      "url": "/d/agri_platform_operations",
+      "includeVars": true,
+      "keepTime": true
     }
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "name": "topic",
+        "label": "Kafka topic",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(kafka_topic_partition_current_offset{job=\"kafka\"},topic)",
+          "refId": "topic"
+        },
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "sort": 1
+      },
+      {
+        "name": "route",
+        "label": "API route",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(agri_api_requests_total{job=\"application-api\"},route)",
+          "refId": "route"
+        },
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "sort": 1
+      },
+      {
+        "name": "service",
+        "label": "Probed service",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(probe_success,service)",
+          "refId": "service"
+        },
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "sort": 1
+      }
+    ]
   },
   "panels": [
     {
@@ -65,25 +145,25 @@
       "title": "⚡ الحالة الصحية لخدمات المنصة (Services Health Grid)",
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 0
+        "y": 0,
+        "w": 24,
+        "h": 1
       }
     },
     {
       "id": 1,
       "type": "stat",
-      "title": "ClickHouse Analytics",
+      "title": "ClickHouse metrics",
       "gridPos": {
-        "h": 3,
-        "w": 4,
         "x": 0,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 3
       },
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -92,11 +172,11 @@
               "type": "value",
               "options": {
                 "1": {
-                  "text": "يعمل ✅",
+                  "text": "Available",
                   "color": "green"
                 },
                 "0": {
-                  "text": "متوقف 🔴",
+                  "text": "Unavailable",
                   "color": "red"
                 }
               }
@@ -114,7 +194,10 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "No telemetry",
+          "min": 0,
+          "max": 1
         },
         "overrides": []
       },
@@ -135,20 +218,21 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT 1 AS value",
-          "format": "table"
+          "expr": "up{job=\"clickhouse\"}",
+          "instant": true
         }
-      ]
+      ],
+      "description": "Endpoint availability only. Check data freshness separately; no alerts can be a healthy outcome."
     },
     {
       "id": 2,
       "type": "stat",
       "title": "MinIO Object Storage",
       "gridPos": {
-        "h": 3,
-        "w": 4,
         "x": 4,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 3
       },
       "datasource": {
         "type": "prometheus",
@@ -183,7 +267,10 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "No telemetry",
+          "min": 0,
+          "max": 1
         },
         "overrides": []
       },
@@ -215,10 +302,10 @@
       "type": "stat",
       "title": "Prometheus Metrics",
       "gridPos": {
-        "h": 3,
-        "w": 4,
         "x": 8,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 3
       },
       "datasource": {
         "type": "prometheus",
@@ -253,7 +340,10 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "No telemetry",
+          "min": 0,
+          "max": 1
         },
         "overrides": []
       },
@@ -283,16 +373,16 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "Spark Streaming (Lakehouse)",
+      "title": "Spark master endpoint",
       "gridPos": {
-        "h": 3,
-        "w": 4,
         "x": 12,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 3
       },
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -301,11 +391,11 @@
               "type": "value",
               "options": {
                 "1": {
-                  "text": "دفق نشط 🟢",
+                  "text": "Available",
                   "color": "green"
                 },
                 "0": {
-                  "text": "غير نشط 🔴",
+                  "text": "Unavailable",
                   "color": "red"
                 }
               }
@@ -323,7 +413,10 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "No telemetry",
+          "min": 0,
+          "max": 1
         },
         "overrides": []
       },
@@ -344,24 +437,25 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT multiIf(max(last_update) >= now() - INTERVAL 2 HOUR, 1, 0) AS value FROM agri_gold.zone_summary_latest",
-          "format": "table"
+          "expr": "probe_success{service=\"spark-master\"}",
+          "instant": true
         }
-      ]
+      ],
+      "description": "Endpoint availability only. Check data freshness separately; no alerts can be a healthy outcome."
     },
     {
       "id": 5,
       "type": "stat",
-      "title": "Kafka Ingestion Stream",
+      "title": "Kafka broker endpoint",
       "gridPos": {
-        "h": 3,
-        "w": 4,
         "x": 16,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 3
       },
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -370,11 +464,11 @@
               "type": "value",
               "options": {
                 "1": {
-                  "text": "دفق نشط 🟢",
+                  "text": "Available",
                   "color": "green"
                 },
                 "0": {
-                  "text": "غير نشط 🔴",
+                  "text": "Unavailable",
                   "color": "red"
                 }
               }
@@ -392,7 +486,10 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "No telemetry",
+          "min": 0,
+          "max": 1
         },
         "overrides": []
       },
@@ -413,24 +510,25 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT multiIf(max(event_time) >= now() - INTERVAL 2 HOUR, 1, 0) AS value FROM agri_gold.irrigation_alerts",
-          "format": "table"
+          "expr": "probe_success{service=\"kafka\"}",
+          "instant": true
         }
-      ]
+      ],
+      "description": "Endpoint availability only. Check data freshness separately; no alerts can be a healthy outcome."
     },
     {
       "id": 6,
       "type": "stat",
-      "title": "Airflow Scheduler (ETL)",
+      "title": "Airflow web endpoint",
       "gridPos": {
-        "h": 3,
-        "w": 4,
         "x": 20,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 3
       },
       "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -439,11 +537,11 @@
               "type": "value",
               "options": {
                 "1": {
-                  "text": "يعمل ✅",
+                  "text": "Available",
                   "color": "green"
                 },
                 "0": {
-                  "text": "متوقف 🔴",
+                  "text": "Unavailable",
                   "color": "red"
                 }
               }
@@ -461,7 +559,10 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "No telemetry",
+          "min": 0,
+          "max": 1
         },
         "overrides": []
       },
@@ -482,10 +583,11 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT multiIf(max(last_update) >= now() - INTERVAL 24 HOUR, 1, 0) AS value FROM agri_gold.farm_summary_latest",
-          "format": "table"
+          "expr": "probe_success{service=\"airflow-webserver\"}",
+          "instant": true
         }
-      ]
+      ],
+      "description": "Endpoint availability only. Check data freshness separately; no alerts can be a healthy outcome."
     },
     {
       "type": "row",
@@ -493,21 +595,21 @@
       "title": "⏱️ حداثة البيانات واتفاقية الخدمة (Data Freshness & SLA Lag)",
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 4
+        "y": 8,
+        "w": 24,
+        "h": 1
       }
     },
     {
       "id": 10,
       "type": "table",
-      "title": "مراقبة التأخير الزمني لجداول طبقة Gold (دقائق التأخر)",
+      "title": "حداثة البيانات الفعلية (Business data freshness)",
       "gridPos": {
-        "h": 6,
-        "w": 24,
         "x": 0,
-        "y": 5
+        "y": 9,
+        "w": 24,
+        "h": 6
       },
       "datasource": {
         "type": "grafana-clickhouse-datasource",
@@ -521,47 +623,47 @@
               "type": "auto"
             },
             "inspect": false
-          }
+          },
+          "noValue": "No data"
         },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
-              "options": "التأخير_بالدقائق"
+              "options": "الحالة"
             },
             "properties": [
               {
                 "id": "custom.cellOptions",
                 "value": {
-                  "type": "color-background",
-                  "mode": "basic"
+                  "type": "color-background"
                 }
               },
               {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green",
-                      "value": null
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 60
-                    },
-                    {
-                      "color": "red",
-                      "value": 120
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "Fresh": {
+                        "text": "Fresh",
+                        "color": "green"
+                      },
+                      "Stale": {
+                        "text": "Stale",
+                        "color": "red"
+                      },
+                      "No data": {
+                        "text": "No data",
+                        "color": "gray"
+                      },
+                      "Future timestamp": {
+                        "text": "Future timestamp",
+                        "color": "orange"
+                      }
                     }
-                  ]
-                }
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "thresholds"
-                }
+                  }
+                ]
               }
             ]
           }
@@ -576,10 +678,11 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT table AS \"اسم_الجدول\", max(modification_time) AS \"آخر_تحديث\", round(dateDiff('minute', max(modification_time), now()), 0) AS \"التأخير_بالدقائق\", count() AS \"عدد_الأجزاء_النشطة\" FROM system.parts WHERE active AND database = 'agri_gold' GROUP BY table ORDER BY max(modification_time) ASC",
+          "rawSql": "SELECT dataset AS \"البيانات\", row_count AS \"عدد_الصفوف\", if(row_count = 0, NULL, last_update) AS \"آخر_حدث\", if(row_count = 0, NULL, dateDiff('minute', last_update, now())) AS \"التأخير_بالدقائق\", max_age_minutes AS \"الحد_بالدقائق\", multiIf(row_count=0, 'No data', last_update>now(), 'Future timestamp', last_update<now()-toIntervalMinute(max_age_minutes), 'Stale', 'Fresh') AS \"الحالة\" FROM (SELECT 'zone_summary_latest' AS dataset, count() AS row_count, max(last_update) AS last_update, 10 AS max_age_minutes FROM agri_gold.zone_summary_latest UNION ALL SELECT 'farm_summary_latest', count(), max(last_update), 10 FROM agri_gold.farm_summary_latest UNION ALL SELECT 'farm_weather_daily', count(), max(last_update), 120 FROM agri_gold.farm_weather_daily UNION ALL SELECT 'ml_predictions', count(), toDateTime(max(prediction_time)), 10 FROM agri_gold.ml_predictions FINAL) ORDER BY dataset",
           "format": "table"
         }
-      ]
+      ],
+      "description": "Age of the newest business row per dataset; does not prove every farm/zone is fresh. Sensor thresholds 10 minutes, weather120minutes. ML timestamp is output creation, not feature evidence age; the app separately validates evidence."
     },
     {
       "type": "row",
@@ -587,10 +690,10 @@
       "title": "💾 حجم واستهلاك جداول البحيرة (Lakehouse Storage & Parts)",
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 11
+        "y": 15,
+        "w": 24,
+        "h": 1
       }
     },
     {
@@ -598,10 +701,10 @@
       "type": "table",
       "title": "إحصائيات التخزين وعدد السجلات لكل جدول في ClickHouse",
       "gridPos": {
-        "h": 6,
-        "w": 24,
         "x": 0,
-        "y": 12
+        "y": 16,
+        "w": 24,
+        "h": 6
       },
       "datasource": {
         "type": "grafana-clickhouse-datasource",
@@ -627,9 +730,39 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "No data"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "الحجم_على_القرص"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "إجمالي_السجلات"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "showHeader": true,
@@ -640,10 +773,11 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT table AS \"الجدول\", formatReadableQuantity(sum(rows)) AS \"إجمالي_السجلات\", formatReadableSize(sum(bytes_on_disk)) AS \"الحجم_على_القرص\", any(engine) AS \"نوع_المحرك\" FROM system.parts WHERE active AND database = 'agri_gold' GROUP BY table ORDER BY sum(bytes_on_disk) DESC",
+          "rawSql": "SELECT table AS \"الجدول\", sum(rows) AS \"إجمالي_السجلات\", sum(bytes_on_disk) AS \"الحجم_على_القرص\", any(engine) AS \"نوع_المحرك\" FROM system.parts WHERE active AND database = 'agri_gold' GROUP BY table ORDER BY sum(bytes_on_disk) DESC",
           "format": "table"
         }
-      ]
+      ],
+      "description": "Physical active part rows, including unmerged retry duplicates in ReplacingMergeTree tables; not a logical deduplicated row count."
     },
     {
       "type": "row",
@@ -651,10 +785,10 @@
       "title": "📊 المقاييس الفنية — ClickHouse و MinIO S3 (Telemetry)",
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 17
+        "y": 22,
+        "w": 24,
+        "h": 1
       }
     },
     {
@@ -662,10 +796,10 @@
       "type": "timeseries",
       "title": "معدل استعلامات وإدراجات ClickHouse",
       "gridPos": {
-        "h": 7,
-        "w": 12,
         "x": 0,
-        "y": 18
+        "y": 23,
+        "w": 12,
+        "h": 7
       },
       "datasource": {
         "type": "prometheus",
@@ -680,7 +814,7 @@
             "axisPlacement": "auto",
             "drawStyle": "line",
             "fillOpacity": 15,
-            "lineInterpolation": "smooth",
+            "lineInterpolation": "linear",
             "lineWidth": 2,
             "scaleDistribution": {
               "type": "linear"
@@ -698,9 +832,31 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No telemetry"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "صفوف مدرجة / ثانية"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ops"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "rows/s"
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -720,12 +876,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "rate(ClickHouseProfileEvents_Query[1m])",
+          "expr": "rate(ClickHouseProfileEvents_Query[$__rate_interval])",
           "legendFormat": "استعلامات / ثانية"
         },
         {
           "refId": "B",
-          "expr": "rate(ClickHouseProfileEvents_InsertedRows[1m])",
+          "expr": "rate(ClickHouseProfileEvents_InsertedRows[$__rate_interval])",
           "legendFormat": "صفوف مدرجة / ثانية"
         }
       ]
@@ -735,10 +891,10 @@
       "type": "timeseries",
       "title": "معدل حركة البيانات في MinIO S3 (وارد / صادر)",
       "gridPos": {
-        "h": 7,
-        "w": 12,
         "x": 12,
-        "y": 18
+        "y": 23,
+        "w": 12,
+        "h": 7
       },
       "datasource": {
         "type": "prometheus",
@@ -753,7 +909,7 @@
             "axisPlacement": "auto",
             "drawStyle": "line",
             "fillOpacity": 15,
-            "lineInterpolation": "smooth",
+            "lineInterpolation": "linear",
             "lineWidth": 2,
             "scaleDistribution": {
               "type": "linear"
@@ -771,7 +927,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No telemetry"
         },
         "overrides": []
       },
@@ -793,15 +950,531 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "rate(minio_s3_traffic_received_bytes_total[1m])",
+          "expr": "rate(minio_s3_traffic_received_bytes_total[$__rate_interval])",
           "legendFormat": "وارد (Inbound Bps)"
         },
         {
           "refId": "B",
-          "expr": "rate(minio_s3_traffic_sent_bytes_total[1m])",
+          "expr": "rate(minio_s3_traffic_sent_bytes_total[$__rate_interval])",
           "legendFormat": "صادر (Outbound Bps)"
         }
       ]
+    },
+    {
+      "id": 200,
+      "title": "Kafka consumer lag",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag{job=\"kafka\",topic=~\"${topic:regex}\"})",
+          "legendFormat": "{{topic}} / {{consumergroup}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No telemetry",
+          "custom": {
+            "lineInterpolation": "linear"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 201,
+      "title": "Kafka incoming messages / second",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 30,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (topic) (clamp_min(deriv(kafka_topic_partition_current_offset{job=\"kafka\",topic=~\"${topic:regex}\"}[$__rate_interval]), 0))",
+          "legendFormat": "{{topic}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "No telemetry",
+          "custom": {
+            "lineInterpolation": "linear"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "description": "Estimated offset growth per second. Exported offsets are gauges, so deriv is used instead of counter rate. Partition recreation or truncation can distort the estimate."
+    },
+    {
+      "id": 202,
+      "title": "PostgreSQL connection availability",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 38,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pg_up{job=\"postgres\"}",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No telemetry",
+          "custom": {
+            "lineInterpolation": "linear"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 203,
+      "title": "PostgreSQL active sessions",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 38,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (datname) (pg_stat_activity_count{job=\"postgres\",state=\"active\"})",
+          "legendFormat": "{{datname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No telemetry",
+          "custom": {
+            "lineInterpolation": "linear"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 204,
+      "title": "ClickHouse memory",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 46,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "ClickHouseMetrics_MemoryTracking",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "No telemetry",
+          "custom": {
+            "lineInterpolation": "linear"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 205,
+      "title": "MinIO usable free capacity",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 46,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "minio_cluster_capacity_usable_free_bytes",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "No telemetry",
+          "custom": {
+            "lineInterpolation": "linear"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 206,
+      "title": "Service probe duration",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 54,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "probe_duration_seconds{job=~\"service-http|service-tcp\",service=~\"${service:regex}\"}",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No telemetry",
+          "custom": {
+            "lineInterpolation": "linear"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 207,
+      "title": "Active infrastructure alerts",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 54,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "ALERTS{alertstate=\"firing\"}",
+          "legendFormat": "{{alertname}} / {{severity}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No telemetry",
+          "custom": {
+            "lineInterpolation": "linear"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "description": "Individual firing alert series. No series means no firing alerts or missing rule evaluation; verify Prometheus target and rule health."
+    },
+    {
+      "id": 208,
+      "title": "Application API endpoint",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "probe_success{service=\"api\"}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No telemetry",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "Available",
+                  "color": "green"
+                },
+                "0": {
+                  "text": "Unavailable",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "background"
+      }
+    },
+    {
+      "id": 209,
+      "title": "API requests per second",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 62,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (route) (rate(agri_api_requests_total{job=\"application-api\",route=~\"${route:regex}\"}[$__rate_interval]))",
+          "legendFormat": "{{route}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "noValue": "No telemetry",
+          "custom": {
+            "lineInterpolation": "linear"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 210,
+      "title": "API server errors per second",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 62,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum by (route) (rate(agri_api_requests_total{job=\"application-api\",route=~\"${route:regex}\",status=~\"5..\"}[$__rate_interval])) or on (route) (0 * sum by (route) (rate(agri_api_requests_total{job=\"application-api\",route=~\"${route:regex}\"}[$__rate_interval]))))",
+          "legendFormat": "{{route}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "noValue": "No telemetry",
+          "custom": {
+            "lineInterpolation": "linear"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "description": "Zero server errors is shown only for routes with observed request telemetry. A missing API scrape is never turned into healthy zero."
+    },
+    {
+      "id": 211,
+      "title": "API response time p95",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 70,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le,route) (rate(agri_api_request_duration_seconds_bucket{job=\"application-api\",route=~\"${route:regex}\"}[$__rate_interval])))",
+          "legendFormat": "{{route}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No telemetry",
+          "custom": {
+            "lineInterpolation": "linear"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 212,
+      "title": "API server error percentage",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 70,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (sum by (route) (rate(agri_api_requests_total{job=\"application-api\",route=~\"${route:regex}\",status=~\"5..\"}[$__rate_interval])) or on (route) (0 * sum by (route) (rate(agri_api_requests_total{job=\"application-api\",route=~\"${route:regex}\"}[$__rate_interval])))) / on (route) (sum by (route) (rate(agri_api_requests_total{job=\"application-api\",route=~\"${route:regex}\"}[$__rate_interval])) > 0)",
+          "legendFormat": "{{route}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "No telemetry",
+          "custom": {
+            "lineInterpolation": "linear"
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "description": "5xx share among observed requests. No traffic or absent request telemetry remains unknown; no global fallback to zero."
     }
   ]
 }

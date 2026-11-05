@@ -32,9 +32,8 @@ datasources:
       host: clickhouse
       port: 9000
       protocol: native
-      username: agri_analytics
-      defaultDatabase: agri_gold
-      tlsSkipVerify: true
+      username: ${CLICKHOUSE_USER}
+      defaultDatabase: ${CLICKHOUSE_DB}
     secureJsonData:
       password: "${CLICKHOUSE_PASSWORD}"
 

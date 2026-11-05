@@ -1,4 +1,15 @@
 # 🌱 Smart Agriculture Irrigation System
+
+> Current repair and deployment guide: [Data model v2](docs/data-model-v2.md),
+> [Upgrade steps](docs/upgrade-v2.md), [Monitoring](docs/observability-deployment.md).
+> Accepted-only Bronze, explicit schemas, a ClickHouse star model and scoped application API
+> replace earlier demo-only serving assumptions. Diagrams/reports below describe earlier stages;
+> use these guides and current code for the revised contracts.
+>
+> Application backend v3: [Startup and administrator setup](docs/backend-application.md),
+> [management/control endpoints](docs/API_CONTROL.md), [OpenAPI contract](docs/api-openapi.json).
+> Email/password sessions, per-farm permissions, dashboards, command queues and an internal service-control agent
+> are implemented for the Flutter website/mobile client.
 ### Enterprise-Grade Data Engineering Lakehouse — Docker Compose Stack
 
 [![Apache Kafka](https://img.shields.io/badge/Kafka-3.7.1-231F20?logo=apachekafka)](https://kafka.apache.org/)

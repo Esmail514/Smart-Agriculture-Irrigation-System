@@ -1,0 +1,78 @@
+# Run: promtool test rules infra/prometheus/tests/agri-alerts.test.yml
+rule_files:
+- ../rules/agri-alerts.yml
+evaluation_interval: 1m
+tests:
+- interval: 1m
+  input_series:
+  - series: agri_api_requests_total{job="application-api",route="/farms/{farm_id}/dashboard",status="200"}
+    values: 0+8x20
+  - series: agri_api_requests_total{job="application-api",route="/farms/{farm_id}/dashboard",status="503"}
+    values: 0+2x20
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: ApplicationAPIErrorRateHigh
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+      exp_annotations:
+        summary: Application API server errors exceed 5% of requests
+- interval: 1m
+  input_series:
+  - series: agri_api_requests_total{job="application-api",route="/farms/{farm_id}/dashboard",status="200"}
+    values: 0+10x20
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: ApplicationAPIErrorRateHigh
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: agri_api_requests_total{job="application-api",route="/farms/{farm_id}/dashboard",status="200"}
+    values: 0+1x20
+  - series: agri_api_requests_total{job="application-api",route="/farms/{farm_id}/dashboard",status="503"}
+    values: 0+1x20
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: ApplicationAPIErrorRateHigh
+    exp_alerts: []
+- interval: 1m
+  input_series: []
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: ApplicationAPIErrorRateHigh
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: ApplicationAPILatencyHigh
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: agri_api_request_duration_seconds_bucket{job="application-api",route="/farms",le="3"}
+    values: 0+0x20
+  - series: agri_api_request_duration_seconds_bucket{job="application-api",route="/farms",le="10"}
+    values: 0+10x20
+  - series: agri_api_request_duration_seconds_bucket{job="application-api",route="/farms",le="+Inf"}
+    values: 0+10x20
+  - series: agri_api_request_duration_seconds_count{job="application-api",route="/farms"}
+    values: 0+10x20
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: ApplicationAPILatencyHigh
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+      exp_annotations:
+        summary: Application API p95 response time exceeds three seconds
+- interval: 1m
+  input_series:
+  - series: agri_api_request_duration_seconds_bucket{job="application-api",route="/farms",le="3"}
+    values: 0+0x20
+  - series: agri_api_request_duration_seconds_bucket{job="application-api",route="/farms",le="10"}
+    values: 0+1x20
+  - series: agri_api_request_duration_seconds_bucket{job="application-api",route="/farms",le="+Inf"}
+    values: 0+1x20
+  - series: agri_api_request_duration_seconds_count{job="application-api",route="/farms"}
+    values: 0+1x20
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: ApplicationAPILatencyHigh
+    exp_alerts: []

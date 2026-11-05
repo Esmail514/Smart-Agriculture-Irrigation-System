@@ -12,7 +12,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 3,
   "editable": true,
   "graphTooltip": 1,
   "time": {
@@ -27,31 +27,41 @@
       "icon": "dashboard",
       "title": "🌐 نظرة عامة (Overview)",
       "type": "link",
-      "url": "/d/agri_overview"
+      "url": "/d/agri_overview",
+      "includeVars": true,
+      "keepTime": true
     },
     {
       "icon": "dashboard",
       "title": "🌱 تحليلات التربة (Soil)",
       "type": "link",
-      "url": "/d/agri_soil_analytics"
+      "url": "/d/agri_soil_analytics",
+      "includeVars": true,
+      "keepTime": true
     },
     {
       "icon": "dashboard",
       "title": "🌦️ الطقس والري (Weather)",
       "type": "link",
-      "url": "/d/agri_weather_irrigation"
+      "url": "/d/agri_weather_irrigation",
+      "includeVars": true,
+      "keepTime": true
     },
     {
       "icon": "dashboard",
       "title": "🧠 توصيات ML (AI/ML)",
       "type": "link",
-      "url": "/d/agri_ai_recommendations"
+      "url": "/d/agri_ai_recommendations",
+      "includeVars": true,
+      "keepTime": true
     },
     {
       "icon": "dashboard",
       "title": "⚡ البنية والعمليات (Platform)",
       "type": "link",
-      "url": "/d/agri_platform_operations"
+      "url": "/d/agri_platform_operations",
+      "includeVars": true,
+      "keepTime": true
     }
   ],
   "templating": {
@@ -65,7 +75,7 @@
         "definition": "SELECT DISTINCT farm_name FROM agri_gold.farm_weather_daily ORDER BY farm_name",
         "hide": 0,
         "includeAll": true,
-        "allValue": "%",
+        "allValue": null,
         "label": "المزرعة",
         "multi": false,
         "name": "farm_name",
@@ -125,7 +135,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -146,7 +157,7 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT round(avg(avg_temperature), 1) AS value FROM agri_gold.farm_weather_daily WHERE farm_name LIKE '$farm_name'",
+          "rawSql": "SELECT round(avgOrNull(avg_temperature), 1) AS value FROM agri_gold.farm_weather_daily WHERE $__timeFilter(weather_date) AND farm_name IN (${farm_name:singlequote})",
           "format": "table"
         }
       ]
@@ -154,7 +165,7 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "إجمالي الأمطار المسجلة (mm)",
+      "title": "متوسط المطر المقدر للمزرعة (mm)",
       "gridPos": {
         "h": 4,
         "w": 4,
@@ -186,7 +197,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -207,10 +219,11 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT round(sum(total_rain), 1) AS value FROM agri_gold.farm_weather_daily WHERE farm_name LIKE '$farm_name'",
+          "rawSql": "SELECT round(avgOrNull(rain_mm), 1) AS value FROM (SELECT farm_id, sum(total_rain) AS rain_mm FROM agri_gold.farm_weather_daily WHERE $__timeFilter(weather_date) AND farm_name IN (${farm_name:singlequote}) GROUP BY farm_id)",
           "format": "table"
         }
-      ]
+      ],
+      "description": "Average per-farm rainfall estimate over the selected UTC dates. One rolling-hour observation per hour is summed; missing observations are not interpolated. This is not a rain-gauge total."
     },
     {
       "id": 3,
@@ -228,7 +241,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "velocitykmh",
+          "unit": "velocityms",
           "decimals": 1,
           "thresholds": {
             "mode": "absolute",
@@ -247,7 +260,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -268,7 +282,7 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT round(avg(avg_wind_speed), 1) AS value FROM agri_gold.farm_weather_daily WHERE farm_name LIKE '$farm_name'",
+          "rawSql": "SELECT round(avgOrNull(avg_wind_speed), 1) AS value FROM agri_gold.farm_weather_daily WHERE $__timeFilter(weather_date) AND farm_name IN (${farm_name:singlequote})",
           "format": "table"
         }
       ]
@@ -300,7 +314,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -321,7 +336,7 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT round(avg(avg_clouds), 0) AS value FROM agri_gold.farm_weather_daily WHERE farm_name LIKE '$farm_name'",
+          "rawSql": "SELECT round(avgOrNull(avg_clouds), 0) AS value FROM agri_gold.farm_weather_daily WHERE $__timeFilter(weather_date) AND farm_name IN (${farm_name:singlequote})",
           "format": "table"
         }
       ]
@@ -361,7 +376,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -382,7 +398,7 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT count() AS value FROM agri_gold.weather_irrigation_alerts WHERE farm_name LIKE '$farm_name'",
+          "rawSql": "SELECT count() AS value FROM agri_gold.weather_irrigation_alerts WHERE $__timeFilter(processing_time) AND farm_name IN (${farm_name:singlequote})",
           "format": "table"
         }
       ]
@@ -390,7 +406,7 @@
     {
       "id": 6,
       "type": "stat",
-      "title": "قرارات تأجيل الري بسبب المطر",
+      "title": "مناطق تستدعي المراجعة بسبب المطر المرصود",
       "gridPos": {
         "h": 4,
         "w": 4,
@@ -414,7 +430,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -435,10 +452,11 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT count() AS value FROM agri_gold.weather_irrigation_alerts WHERE irrigation_decision LIKE '%Postpone%' OR irrigation_decision LIKE '%Rain%' OR irrigation_decision LIKE '%تأجيل%'",
+          "rawSql": "SELECT count() AS value FROM agri_gold.weather_irrigation_alerts WHERE $__timeFilter(processing_time) AND farm_name IN (${farm_name:singlequote}) AND weather_available=1 AND observed_rain_mm>0",
           "format": "table"
         }
-      ]
+      ],
+      "description": "Observed rainfall is a sampled estimate. No forecast-based postponement is generated."
     },
     {
       "type": "row",
@@ -474,7 +492,8 @@
               "type": "auto"
             },
             "inspect": false
-          }
+          },
+          "noValue": "No data"
         },
         "overrides": [
           {
@@ -534,7 +553,7 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT farm_name AS \"المزرعة\", weather_date AS \"التاريخ\", round(avg_temperature, 1) AS \"الحرارة_C\", round(avg_humidity, 1) AS \"الرطوبة_%\", round(total_rain, 1) AS \"الأمطار_mm\", round(avg_wind_speed, 1) AS \"الرياح_km_h\", round(avg_clouds, 0) AS \"الغيوم_%\", weather_condition AS \"حالة_الطقس\", last_update AS \"آخر_تحديث\" FROM agri_gold.farm_weather_daily WHERE farm_name LIKE '$farm_name' ORDER BY weather_date DESC, farm_name",
+          "rawSql": "SELECT farm_name AS \"المزرعة\", weather_date AS \"التاريخ\", round(avg_temperature, 1) AS \"الحرارة_C\", round(avg_humidity, 1) AS \"الرطوبة_%\", round(total_rain, 1) AS \"الأمطار_mm\", round(avg_wind_speed, 1) AS \"الرياح_m_s\", round(avg_clouds, 0) AS \"الغيوم_%\", weather_condition AS \"حالة_الطقس\", last_update AS \"آخر_تحديث\" FROM agri_gold.farm_weather_daily WHERE $__timeFilter(weather_date) AND farm_name IN (${farm_name:singlequote}) ORDER BY weather_date DESC, farm_name",
           "format": "table"
         }
       ]
@@ -554,7 +573,7 @@
     {
       "id": 20,
       "type": "table",
-      "title": "سجل قرارات الري الذكية وفقاً لحالة الطقس والتوقعات",
+      "title": "قرارات الري بحسب المطر المرصود",
       "gridPos": {
         "h": 8,
         "w": 24,
@@ -573,7 +592,8 @@
               "type": "auto"
             },
             "inspect": false
-          }
+          },
+          "noValue": "No data"
         },
         "overrides": [
           {
@@ -639,10 +659,11 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT farm_name AS \"المزرعة\", zone_name AS \"المنطقة\", crop_name AS \"المحصول\", round(soil_moisture, 1) AS \"رطوبة_التربة_%\", round(expected_rain, 1) AS \"المطر_المتوقع_mm\", round(recommended_water_mm, 1) AS \"الماء_الموصى_mm\", irrigation_decision AS \"قرار_الري\", weather_condition AS \"الطقس\", processing_time AS \"وقت_المعالجة\" FROM agri_gold.weather_irrigation_alerts WHERE farm_name LIKE '$farm_name' ORDER BY processing_time DESC LIMIT 50",
+          "rawSql": "SELECT farm_name AS \"المزرعة\", zone_name AS \"المنطقة\", crop_name AS \"المحصول\", round(soil_moisture, 1) AS \"رطوبة_التربة_%\", round(observed_rain_mm, 1) AS \"المطر_المرصود_mm\", round(recommended_water_mm, 1) AS \"الماء_الموصى_mm\", irrigation_decision AS \"قرار_الري\", weather_condition AS \"الطقس\", processing_time AS \"وقت_المعالجة\" FROM agri_gold.weather_irrigation_alerts WHERE $__timeFilter(processing_time) AND farm_name IN (${farm_name:singlequote}) ORDER BY processing_time DESC LIMIT 50",
           "format": "table"
         }
-      ]
+      ],
+      "description": "Observed rainfall is a daily estimate; no weather forecast source is configured."
     }
   ]
 }

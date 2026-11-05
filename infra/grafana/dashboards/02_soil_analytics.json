@@ -12,7 +12,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 3,
   "editable": true,
   "graphTooltip": 1,
   "time": {
@@ -27,31 +27,41 @@
       "icon": "dashboard",
       "title": "🌐 نظرة عامة (Overview)",
       "type": "link",
-      "url": "/d/agri_overview"
+      "url": "/d/agri_overview",
+      "includeVars": true,
+      "keepTime": true
     },
     {
       "icon": "dashboard",
       "title": "🌱 تحليلات التربة (Soil)",
       "type": "link",
-      "url": "/d/agri_soil_analytics"
+      "url": "/d/agri_soil_analytics",
+      "includeVars": true,
+      "keepTime": true
     },
     {
       "icon": "dashboard",
       "title": "🌦️ الطقس والري (Weather)",
       "type": "link",
-      "url": "/d/agri_weather_irrigation"
+      "url": "/d/agri_weather_irrigation",
+      "includeVars": true,
+      "keepTime": true
     },
     {
       "icon": "dashboard",
       "title": "🧠 توصيات ML (AI/ML)",
       "type": "link",
-      "url": "/d/agri_ai_recommendations"
+      "url": "/d/agri_ai_recommendations",
+      "includeVars": true,
+      "keepTime": true
     },
     {
       "icon": "dashboard",
       "title": "⚡ البنية والعمليات (Platform)",
       "type": "link",
-      "url": "/d/agri_platform_operations"
+      "url": "/d/agri_platform_operations",
+      "includeVars": true,
+      "keepTime": true
     }
   ],
   "templating": {
@@ -65,7 +75,7 @@
         "definition": "SELECT DISTINCT farm_name FROM agri_gold.farm_summary_latest ORDER BY farm_name",
         "hide": 0,
         "includeAll": true,
-        "allValue": "%",
+        "allValue": null,
         "label": "المزرعة",
         "multi": false,
         "name": "farm_name",
@@ -81,15 +91,15 @@
           "type": "grafana-clickhouse-datasource",
           "uid": "clickhouse"
         },
-        "definition": "SELECT DISTINCT zone_name FROM agri_gold.zone_summary_latest WHERE farm_name LIKE '$farm_name' ORDER BY zone_name",
+        "definition": "SELECT DISTINCT zone_name FROM agri_gold.zone_summary_latest WHERE farm_name IN (${farm_name:singlequote}) ORDER BY zone_name",
         "hide": 0,
         "includeAll": true,
-        "allValue": "%",
+        "allValue": null,
         "label": "المنطقة الزراعية",
         "multi": false,
         "name": "zone_name",
         "options": [],
-        "query": "SELECT DISTINCT zone_name FROM agri_gold.zone_summary_latest WHERE farm_name LIKE '$farm_name' ORDER BY zone_name",
+        "query": "SELECT DISTINCT zone_name FROM agri_gold.zone_summary_latest WHERE farm_name IN (${farm_name:singlequote}) ORDER BY zone_name",
         "refresh": 2,
         "sort": 1,
         "type": "query"
@@ -144,7 +154,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -165,10 +176,11 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT round(avg(avg_soil_moisture), 1) AS value FROM agri_gold.zone_summary_latest WHERE farm_name LIKE '$farm_name' AND zone_name LIKE '$zone_name'",
+          "rawSql": "SELECT round(avgOrNull(avg_soil_moisture), 1) AS value FROM agri_gold.zone_summary_latest WHERE farm_name IN (${farm_name:singlequote}) AND zone_name IN (${zone_name:singlequote}) AND last_update >= now() - INTERVAL 10 MINUTE AND last_update <= now()",
           "format": "table"
         }
-      ]
+      ],
+      "description": "Current state: zone observations at most ten minutes old. Historical charts use the selected date range."
     },
     {
       "id": 2,
@@ -205,7 +217,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -226,10 +239,11 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT round(avg(avg_soil_temperature), 1) AS value FROM agri_gold.zone_summary_latest WHERE farm_name LIKE '$farm_name' AND zone_name LIKE '$zone_name'",
+          "rawSql": "SELECT round(avgOrNull(avg_soil_temperature), 1) AS value FROM agri_gold.zone_summary_latest WHERE farm_name IN (${farm_name:singlequote}) AND zone_name IN (${zone_name:singlequote}) AND last_update >= now() - INTERVAL 10 MINUTE AND last_update <= now()",
           "format": "table"
         }
-      ]
+      ],
+      "description": "Current state: zone observations at most ten minutes old. Historical charts use the selected date range."
     },
     {
       "id": 3,
@@ -266,7 +280,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -287,10 +302,11 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT round(avg(avg_air_temperature), 1) AS value FROM agri_gold.zone_summary_latest WHERE farm_name LIKE '$farm_name' AND zone_name LIKE '$zone_name'",
+          "rawSql": "SELECT round(avgOrNull(avg_air_temperature), 1) AS value FROM agri_gold.zone_summary_latest WHERE farm_name IN (${farm_name:singlequote}) AND zone_name IN (${zone_name:singlequote}) AND last_update >= now() - INTERVAL 10 MINUTE AND last_update <= now()",
           "format": "table"
         }
-      ]
+      ],
+      "description": "Current state: zone observations at most ten minutes old. Historical charts use the selected date range."
     },
     {
       "id": 4,
@@ -327,7 +343,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -348,10 +365,11 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT round(avg(avg_air_humidity), 1) AS value FROM agri_gold.zone_summary_latest WHERE farm_name LIKE '$farm_name' AND zone_name LIKE '$zone_name'",
+          "rawSql": "SELECT round(avgOrNull(avg_air_humidity), 1) AS value FROM agri_gold.zone_summary_latest WHERE farm_name IN (${farm_name:singlequote}) AND zone_name IN (${zone_name:singlequote}) AND last_update >= now() - INTERVAL 10 MINUTE AND last_update <= now()",
           "format": "table"
         }
-      ]
+      ],
+      "description": "Current state: zone observations at most ten minutes old. Historical charts use the selected date range."
     },
     {
       "id": 5,
@@ -388,7 +406,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -409,15 +428,16 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT count() AS value FROM agri_gold.zone_summary_latest WHERE water_status IN ('Dry', 'Critical') AND farm_name LIKE '$farm_name' AND zone_name LIKE '$zone_name'",
+          "rawSql": "SELECT count() AS value FROM agri_gold.zone_summary_latest WHERE water_status IN ('Dry', 'Critical') AND farm_name IN (${farm_name:singlequote}) AND zone_name IN (${zone_name:singlequote}) AND last_update >= now() - INTERVAL 10 MINUTE AND last_update <= now()",
           "format": "table"
         }
-      ]
+      ],
+      "description": "Current state: zone observations at most ten minutes old. Historical charts use the selected date range."
     },
     {
       "id": 6,
       "type": "stat",
-      "title": "إجمالي الماء الموصى به (mm)",
+      "title": "متوسط عمق الري الموصى به (mm)",
       "gridPos": {
         "h": 4,
         "w": 4,
@@ -441,7 +461,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -462,10 +483,11 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT round(sum(recommended_water_mm), 1) AS value FROM agri_gold.zone_summary_latest WHERE farm_name LIKE '$farm_name' AND zone_name LIKE '$zone_name'",
+          "rawSql": "SELECT round(avgOrNull(recommended_water_mm), 1) AS value FROM agri_gold.zone_summary_latest WHERE farm_name IN (${farm_name:singlequote}) AND zone_name IN (${zone_name:singlequote}) AND last_update >= now() - INTERVAL 10 MINUTE AND last_update <= now()",
           "format": "table"
         }
-      ]
+      ],
+      "description": "Average recommended irrigation depth for fresh selected zones; not total water volume or measured consumption."
     },
     {
       "type": "row",
@@ -482,7 +504,7 @@
     {
       "id": 10,
       "type": "timeseries",
-      "title": "تطور رطوبة التربة عبر الزمن (آخر 24 ساعة)",
+      "title": "تطور رطوبة التربة في الفترة المختارة",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -502,7 +524,7 @@
             "axisPlacement": "auto",
             "drawStyle": "line",
             "fillOpacity": 12,
-            "lineInterpolation": "smooth",
+            "lineInterpolation": "linear",
             "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
@@ -532,7 +554,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -555,7 +578,7 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT toStartOfHour(last_update) AS \"time\", zone_name, round(avg(avg_soil_moisture), 1) AS \"رطوبة_التربة_%\" FROM agri_gold.zone_summary_history WHERE last_update >= now() - INTERVAL 24 HOUR AND farm_name LIKE '$farm_name' AND zone_name LIKE '$zone_name' GROUP BY toStartOfHour(last_update), zone_name ORDER BY \"time\"",
+          "rawSql": "SELECT toStartOfHour(last_update) AS \"time\", zone_name, round(avg(avg_soil_moisture), 1) AS \"رطوبة_التربة_%\" FROM agri_gold.zone_summary_history FINAL WHERE $__timeFilter(last_update) AND farm_name IN (${farm_name:singlequote}) AND zone_name IN (${zone_name:singlequote}) GROUP BY toStartOfHour(last_update), zone_name ORDER BY \"time\"",
           "format": "table"
         }
       ]
@@ -583,7 +606,7 @@
             "axisPlacement": "auto",
             "drawStyle": "line",
             "fillOpacity": 10,
-            "lineInterpolation": "smooth",
+            "lineInterpolation": "linear",
             "lineWidth": 2,
             "scaleDistribution": {
               "type": "linear"
@@ -601,7 +624,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -623,12 +647,12 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT toStartOfHour(last_update) AS \"time\", round(avg(avg_soil_temperature), 1) AS \"حرارة_التربة_C\" FROM agri_gold.zone_summary_history WHERE last_update >= now() - INTERVAL 24 HOUR AND farm_name LIKE '$farm_name' AND zone_name LIKE '$zone_name' GROUP BY toStartOfHour(last_update) ORDER BY \"time\"",
+          "rawSql": "SELECT toStartOfHour(last_update) AS \"time\", round(avg(avg_soil_temperature), 1) AS \"حرارة_التربة_C\" FROM agri_gold.zone_summary_history FINAL WHERE $__timeFilter(last_update) AND farm_name IN (${farm_name:singlequote}) AND zone_name IN (${zone_name:singlequote}) GROUP BY toStartOfHour(last_update) ORDER BY \"time\"",
           "format": "table"
         },
         {
           "refId": "B",
-          "rawSql": "SELECT toStartOfHour(last_update) AS \"time\", round(avg(avg_air_temperature), 1) AS \"حرارة_الهواء_C\" FROM agri_gold.zone_summary_history WHERE last_update >= now() - INTERVAL 24 HOUR AND farm_name LIKE '$farm_name' AND zone_name LIKE '$zone_name' GROUP BY toStartOfHour(last_update) ORDER BY \"time\"",
+          "rawSql": "SELECT toStartOfHour(last_update) AS \"time\", round(avg(avg_air_temperature), 1) AS \"حرارة_الهواء_C\" FROM agri_gold.zone_summary_history FINAL WHERE $__timeFilter(last_update) AND farm_name IN (${farm_name:singlequote}) AND zone_name IN (${zone_name:singlequote}) GROUP BY toStartOfHour(last_update) ORDER BY \"time\"",
           "format": "table"
         }
       ]
@@ -667,7 +691,8 @@
               "type": "auto"
             },
             "inspect": false
-          }
+          },
+          "noValue": "No data"
         },
         "overrides": [
           {
@@ -768,7 +793,7 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT farm_name AS \"المزرعة\", zone_name AS \"المنطقة\", crop_name AS \"المحصول\", sensor_count AS \"المستشعرات\", round(avg_soil_moisture, 1) AS \"رطوبة_التربة_%\", round(avg_soil_temperature, 1) AS \"حرارة_التربة_C\", round(avg_air_temperature, 1) AS \"حرارة_الهواء_C\", round(avg_air_humidity, 1) AS \"رطوبة_الهواء_%\", round(recommended_water_mm, 1) AS \"ماء_موصى_mm\", water_status AS \"حالة_الماء\", last_update AS \"آخر_تحديث\" FROM agri_gold.zone_summary_latest WHERE farm_name LIKE '$farm_name' AND zone_name LIKE '$zone_name' ORDER BY farm_name, zone_name",
+          "rawSql": "SELECT farm_name AS \"المزرعة\", zone_name AS \"المنطقة\", crop_name AS \"المحصول\", sensor_count AS \"المستشعرات\", round(avg_soil_moisture, 1) AS \"رطوبة_التربة_%\", round(avg_soil_temperature, 1) AS \"حرارة_التربة_C\", round(avg_air_temperature, 1) AS \"حرارة_الهواء_C\", round(avg_air_humidity, 1) AS \"رطوبة_الهواء_%\", round(recommended_water_mm, 1) AS \"ماء_موصى_mm\", water_status AS \"حالة_الماء\", last_update AS \"آخر_تحديث\", dateDiff('minute', last_update, now()) AS \"العمر_بالدقائق\", multiIf(last_update > now(), 'Future timestamp', last_update < now() - INTERVAL 10 MINUTE, 'Stale', 'Fresh') AS \"حداثة_البيانات\" FROM agri_gold.zone_summary_latest WHERE farm_name IN (${farm_name:singlequote}) AND zone_name IN (${zone_name:singlequote}) ORDER BY farm_name, zone_name",
           "format": "table"
         }
       ]
@@ -807,7 +832,8 @@
               "type": "auto"
             },
             "inspect": false
-          }
+          },
+          "noValue": "No data"
         },
         "overrides": []
       },

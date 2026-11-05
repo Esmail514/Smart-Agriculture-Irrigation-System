@@ -58,6 +58,8 @@ docker-compose.local.yml
 
 # Build artifacts
 *.jar
+*.joblib
+src/ml/artifacts/*.json
 
 # Project Documents
 /Final Project- Guidelines.pdf

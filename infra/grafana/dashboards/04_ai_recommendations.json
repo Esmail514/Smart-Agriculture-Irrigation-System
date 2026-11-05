@@ -2,7 +2,7 @@
   "id": null,
   "uid": "agri_ai_recommendations",
   "title": "مركز توصيات الذكاء الاصطناعي (AI & ML Recommendation Center)",
-  "description": "تنبؤات نماذج التعلم الآلي لجدولة الري، تحليل مستويات الثقة، وتنبؤات اليوم والغد",
+  "description": "تصنيف جفاف التربة الحالي بحدود المحصول. تقييم النموذج يستخدم فترة اختبار زمنية؛ ثقة التنبؤ ليست دقة. توقع الغد غير متوفر حتى تتوفر نتائج مستقبلية حقيقية.",
   "tags": [
     "agriculture",
     "ai",
@@ -12,7 +12,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 3,
   "editable": true,
   "graphTooltip": 1,
   "time": {
@@ -27,31 +27,41 @@
       "icon": "dashboard",
       "title": "🌐 نظرة عامة (Overview)",
       "type": "link",
-      "url": "/d/agri_overview"
+      "url": "/d/agri_overview",
+      "includeVars": true,
+      "keepTime": true
     },
     {
       "icon": "dashboard",
       "title": "🌱 تحليلات التربة (Soil)",
       "type": "link",
-      "url": "/d/agri_soil_analytics"
+      "url": "/d/agri_soil_analytics",
+      "includeVars": true,
+      "keepTime": true
     },
     {
       "icon": "dashboard",
       "title": "🌦️ الطقس والري (Weather)",
       "type": "link",
-      "url": "/d/agri_weather_irrigation"
+      "url": "/d/agri_weather_irrigation",
+      "includeVars": true,
+      "keepTime": true
     },
     {
       "icon": "dashboard",
       "title": "🧠 توصيات ML (AI/ML)",
       "type": "link",
-      "url": "/d/agri_ai_recommendations"
+      "url": "/d/agri_ai_recommendations",
+      "includeVars": true,
+      "keepTime": true
     },
     {
       "icon": "dashboard",
       "title": "⚡ البنية والعمليات (Platform)",
       "type": "link",
-      "url": "/d/agri_platform_operations"
+      "url": "/d/agri_platform_operations",
+      "includeVars": true,
+      "keepTime": true
     }
   ],
   "templating": {
@@ -62,15 +72,15 @@
           "type": "grafana-clickhouse-datasource",
           "uid": "clickhouse"
         },
-        "definition": "SELECT DISTINCT farm_name FROM agri_gold.ml_predictions ORDER BY farm_name",
+        "definition": "SELECT DISTINCT farm_name FROM agri_gold.ml_predictions FINAL ORDER BY farm_name",
         "hide": 0,
         "includeAll": true,
-        "allValue": "%",
+        "allValue": null,
         "label": "المزرعة",
         "multi": false,
         "name": "farm_name",
         "options": [],
-        "query": "SELECT DISTINCT farm_name FROM agri_gold.ml_predictions ORDER BY farm_name",
+        "query": "SELECT DISTINCT farm_name FROM agri_gold.ml_predictions FINAL ORDER BY farm_name",
         "refresh": 2,
         "sort": 1,
         "type": "query"
@@ -125,7 +135,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -146,7 +157,7 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT avg(prediction_confidence) AS value FROM agri_gold.ml_predictions WHERE prediction_time >= now() - INTERVAL 24 HOUR AND farm_name LIKE '$farm_name'",
+          "rawSql": "SELECT avgOrNull(prediction_confidence) AS value FROM agri_gold.ml_predictions FINAL WHERE $__timeFilter(prediction_time) AND farm_name IN (${farm_name:singlequote})",
           "format": "table"
         }
       ]
@@ -154,7 +165,7 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "إجمالي التنبؤات (24h)",
+      "title": "إجمالي التصنيفات في الفترة المختارة",
       "gridPos": {
         "h": 4,
         "w": 4,
@@ -178,7 +189,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -199,7 +211,7 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT count() AS value FROM agri_gold.ml_predictions WHERE prediction_time >= now() - INTERVAL 24 HOUR AND farm_name LIKE '$farm_name'",
+          "rawSql": "SELECT count() AS value FROM agri_gold.ml_predictions FINAL WHERE $__timeFilter(prediction_time) AND farm_name IN (${farm_name:singlequote})",
           "format": "table"
         }
       ]
@@ -207,7 +219,7 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "الري مطلوب اليوم",
+      "title": "مناطق جافة بحسب آخر تصنيف",
       "gridPos": {
         "h": 4,
         "w": 4,
@@ -239,7 +251,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -260,24 +273,20 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT count() AS value FROM agri_gold.ml_predictions WHERE needs_irrigation_today = 1 AND prediction_time >= now() - INTERVAL 24 HOUR AND farm_name LIKE '$farm_name'",
+          "rawSql": "SELECT countIf(dry = 1) AS value FROM (SELECT zone_id, argMaxOrNull(needs_irrigation_today, prediction_time) AS dry FROM agri_gold.ml_predictions FINAL WHERE $__timeFilter(prediction_time) AND farm_name IN (${farm_name:singlequote}) GROUP BY zone_id)",
           "format": "table"
         }
       ]
     },
     {
       "id": 4,
-      "type": "stat",
-      "title": "الري مطلوب غداً (استباقي)",
+      "type": "text",
+      "title": "توقع الغد غير متوفر",
       "gridPos": {
         "h": 4,
         "w": 4,
         "x": 12,
         "y": 1
-      },
-      "datasource": {
-        "type": "grafana-clickhouse-datasource",
-        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -300,36 +309,20 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
       "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "auto",
-        "textMode": "auto",
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "rawSql": "SELECT count() AS value FROM agri_gold.ml_predictions WHERE needs_irrigation_tomorrow = 1 AND prediction_time >= now() - INTERVAL 24 HOUR AND farm_name LIKE '$farm_name'",
-          "format": "table"
-        }
-      ]
+        "mode": "markdown",
+        "content": "لا توجد نتائج ري مستقبلية مؤكدة لتدريب توقع الغد. النموذج الحالي يصنف جفاف التربة فقط."
+      }
     },
     {
       "id": 5,
       "type": "stat",
-      "title": "تنبؤات فائقة الثقة (>85%)",
+      "title": "تصنيفات بثقة ≥85%",
       "gridPos": {
         "h": 4,
         "w": 4,
@@ -357,7 +350,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -378,15 +372,16 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT count() AS value FROM agri_gold.ml_predictions WHERE prediction_confidence >= 0.85 AND prediction_time >= now() - INTERVAL 24 HOUR AND farm_name LIKE '$farm_name'",
+          "rawSql": "SELECT count() AS value FROM agri_gold.ml_predictions FINAL WHERE prediction_confidence >= 0.85 AND $__timeFilter(prediction_time) AND farm_name IN (${farm_name:singlequote})",
           "format": "table"
         }
-      ]
+      ],
+      "description": "Confidence is model probability, not measured accuracy or operational reliability."
     },
     {
       "id": 6,
       "type": "stat",
-      "title": "إصدار النموذج النشط",
+      "title": "أحدث إصدار نموذج في الفترة المختارة",
       "gridPos": {
         "h": 4,
         "w": 4,
@@ -408,7 +403,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -429,7 +425,7 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT any(model_version) AS value FROM agri_gold.ml_predictions",
+          "rawSql": "SELECT argMaxOrNull(model_version, prediction_time) AS value FROM agri_gold.ml_predictions FINAL WHERE $__timeFilter(prediction_time) AND farm_name IN (${farm_name:singlequote})",
           "format": "table"
         }
       ]
@@ -449,7 +445,7 @@
     {
       "id": 10,
       "type": "timeseries",
-      "title": "تطور متوسط ثقة النموذج بالساعة (مع نطاقات الأمان)",
+      "title": "متوسط ثقة النموذج في الفترة المختارة",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -469,7 +465,7 @@
             "axisPlacement": "auto",
             "drawStyle": "line",
             "fillOpacity": 12,
-            "lineInterpolation": "smooth",
+            "lineInterpolation": "linear",
             "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
@@ -499,7 +495,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -521,7 +518,7 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT toStartOfHour(prediction_time) AS \"time\", round(avg(prediction_confidence), 3) AS \"متوسط_الثقة\" FROM agri_gold.ml_predictions WHERE prediction_time >= now() - INTERVAL 24 HOUR AND farm_name LIKE '$farm_name' GROUP BY toStartOfHour(prediction_time) ORDER BY \"time\"",
+          "rawSql": "SELECT toStartOfHour(prediction_time) AS \"time\", round(avg(prediction_confidence), 3) AS \"متوسط_الثقة\" FROM agri_gold.ml_predictions FINAL WHERE $__timeFilter(prediction_time) AND farm_name IN (${farm_name:singlequote}) GROUP BY toStartOfHour(prediction_time) ORDER BY \"time\"",
           "format": "table"
         }
       ]
@@ -529,7 +526,7 @@
     {
       "id": 11,
       "type": "barchart",
-      "title": "توزيع قرارات الري للنماذج حسب المزرعة",
+      "title": "توزيع أحدث تصنيفات الجفاف في الفترة المختارة",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -569,7 +566,8 @@
               }
             ]
           },
-          "mappings": []
+          "mappings": [],
+          "noValue": "No data"
         },
         "overrides": []
       },
@@ -586,7 +584,7 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT farm_name AS \"المزرعة\", countIf(needs_irrigation_today = 1) AS \"ري_اليوم\", countIf(needs_irrigation_tomorrow = 1) AS \"ري_الغد\", countIf(needs_irrigation_today = 0 AND needs_irrigation_tomorrow = 0) AS \"غير_مطلوب\" FROM agri_gold.ml_predictions WHERE prediction_time >= now() - INTERVAL 24 HOUR AND farm_name LIKE '$farm_name' GROUP BY farm_name ORDER BY \"ري_اليوم\" DESC",
+          "rawSql": "SELECT farm_name AS \"المزرعة\", countIf(dry = 1) AS \"مناطق_جافة\", countIf(dry = 0) AS \"مناطق_غير_جافة\" FROM (SELECT zone_id, argMax(farm_name, prediction_time) AS farm_name, argMax(needs_irrigation_today, prediction_time) AS dry FROM agri_gold.ml_predictions FINAL WHERE $__timeFilter(prediction_time) AND farm_name IN (${farm_name:singlequote}) GROUP BY zone_id) GROUP BY farm_name ORDER BY \"مناطق_جافة\" DESC",
           "format": "table"
         }
       ]
@@ -625,7 +623,8 @@
               "type": "auto"
             },
             "inspect": false
-          }
+          },
+          "noValue": "No data"
         },
         "overrides": [
           {
@@ -643,39 +642,6 @@
                       "1": {
                         "text": "نعم — ري مطلوب",
                         "color": "red"
-                      },
-                      "0": {
-                        "text": "لا — غير مطلوب",
-                        "color": "green"
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-background",
-                  "mode": "basic"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "ري_الغد"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "1": {
-                        "text": "نعم — ري مطلوب",
-                        "color": "orange"
                       },
                       "0": {
                         "text": "لا — غير مطلوب",
@@ -754,7 +720,7 @@
       "targets": [
         {
           "refId": "A",
-          "rawSql": "SELECT farm_name AS \"المزرعة\", zone_name AS \"المنطقة الزراعية\", crop_name AS \"المحصول\", prediction_confidence AS \"الثقة\", needs_irrigation_today AS \"ري_اليوم\", needs_irrigation_tomorrow AS \"ري_الغد\", model_version AS \"النموذج\", prediction_date AS \"التاريخ\", prediction_time AS \"وقت_التنبؤ\" FROM agri_gold.ml_predictions WHERE farm_name LIKE '$farm_name' ORDER BY prediction_time DESC LIMIT 50",
+          "rawSql": "SELECT farm_name AS \"المزرعة\", zone_name AS \"المنطقة الزراعية\", crop_name AS \"المحصول\", prediction_confidence AS \"الثقة\", needs_irrigation_today AS \"جفاف_حالي\", model_version AS \"النموذج\", prediction_date AS \"التاريخ\", prediction_time AS \"وقت_التنبؤ\" FROM agri_gold.ml_predictions FINAL WHERE $__timeFilter(prediction_time) AND farm_name IN (${farm_name:singlequote}) ORDER BY prediction_time DESC LIMIT 50",
           "format": "table"
         }
       ]
